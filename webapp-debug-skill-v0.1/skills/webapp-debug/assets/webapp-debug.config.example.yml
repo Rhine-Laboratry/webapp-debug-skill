@@ -1,0 +1,165 @@
+schema_version: 1
+
+project:
+  project_id: ""
+  name: ""
+  repository_root: "."
+
+runtime:
+  environment: local-with-internal-db
+  app:
+    base_url: "http://127.0.0.1:8765"
+    start_command: ""
+    readiness_url: "/"
+    startup_timeout_seconds: 120
+  locale: ja-JP
+  timezone: Asia/Tokyo
+
+stack:
+  autodetect: true
+  cakephp:
+    supported_major_versions: [3, 4, 5]
+    cakephp_2_mode: generic
+  javascript: autodetect
+
+scope:
+  playwright:
+    - UI_PAGE
+    - AJAX_FROM_UI
+    - UPLOAD
+    - DOWNLOAD
+    - EMAIL
+    - REPORT_CSV
+    - REPORT_PDF
+    - CLIENT_INTERACTION
+  inventory_only:
+    - API_ONLY
+    - COMMAND_CRON
+    - QUEUE_ASYNC
+    - EXTERNAL_INTEGRATION
+  exclude_paths:
+    - vendor/**
+    - node_modules/**
+    - tmp/**
+    - logs/**
+    - cache/**
+    - coverage/**
+    - "**/*.min.js"
+
+operations:
+  profile: safe-staging
+  allow_runtime_override: true
+  allowed_hosts:
+    - "127.0.0.1"
+    - "localhost"
+  create: allow
+  update: allow-owned-only
+  delete: allow-owned-only
+  upload_file: allow
+  download_file: allow
+  generate_report: allow
+  send_email: redirect-or-capture
+  call_external_api: allowlisted-only
+  execute_payment: deny
+  restore_database: explicit-only
+
+# DB接続を伴うブラウザ実行／データ操作前に、patternとsentinelを必ず設定する。
+database:
+  classification: unknown # dedicated | shared | unknown
+  local_config_candidates:
+    - config/local.php
+    - config/app_local.php
+    - app/Config/database.php
+  destructive_reset: false
+  reset_scope: none # none | manual | suite
+  reset_command: ""
+  expected_host_pattern: ""
+  expected_database_pattern: ""
+  sentinel:
+    required: true
+    query: ""
+    expected_value: ""
+  shared_database:
+    snapshot_restore: deny
+    update_existing_data: deny
+    delete_existing_data: deny
+  seed:
+    command: ""
+    destructive: false
+    idempotent: true
+    attach_test_run_id: true
+    tracking_strategy: auto # column | embedded-identifier | tracking-table | manifest | auto
+  cleanup:
+    mode: always
+    scope: current-test-run-only
+    retain_on_failure: false
+    allow_runtime_retain_override: true
+    delete_if_ownership_unknown: false
+
+authentication:
+  require_runtime_confirmation: true
+  strategy_order:
+    - seeded-account
+    - environment-variables
+    - storage-state
+    - manual-login
+  storage_state_dir: .webapp-debug/auth
+  roles:
+    user:
+      username_env: WEBAPP_DEBUG_USER_USERNAME
+      password_env: WEBAPP_DEBUG_USER_PASSWORD
+    admin:
+      username_env: WEBAPP_DEBUG_ADMIN_USERNAME
+      password_env: WEBAPP_DEBUG_ADMIN_PASSWORD
+
+sheets:
+  spreadsheet_id: ""
+  create_policy: init-only
+  service_account_credentials_env: GOOGLE_APPLICATION_CREDENTIALS
+  writer: skill-only
+  concurrency: single-writer
+  lock_ttl_minutes: 120
+  batch_size: 25
+  human_editable_columns:
+    - review_status
+    - notes
+    - manual_override
+    - manual_expected_behavior
+    - manual_exclusion_reason
+    - manual_priority
+
+playwright:
+  reuse_existing: true
+  isolated_root: tests/e2e
+  generated_dir: tests/e2e/generated
+  fixtures_dir: tests/e2e/fixtures
+  pages_dir: tests/e2e/pages
+  browser: chromium
+  viewport:
+    width: 1440
+    height: 900
+  workers: 1
+  retries: 1
+  scenario_timeout_ms: 60000
+  expect_timeout_ms: 10000
+  trace: retain-on-failure-and-retries
+  video: retain-on-failure
+  screenshot: only-on-failure
+  devices: []
+
+risk:
+  default_depth: B
+  high_depth: C
+  critical_depth: D
+  auto_classify: true
+
+artifacts:
+  local_dir: .webapp-debug/artifacts
+  external_store: optional
+  retention_days: 90
+  redact_personal_data: true
+  redact_secrets: always
+
+state:
+  local_dir: .webapp-debug/state
+  wal_enabled: true

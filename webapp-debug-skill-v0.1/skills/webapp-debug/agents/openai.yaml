@@ -1,0 +1,6 @@
+interface:
+  display_name: "Webapp Debug"
+  short_description: "コード探索、Scenario化、Playwright実行、Sheets記録"
+  default_prompt: "$webapp-debug report"
+policy:
+  allow_implicit_invocation: false

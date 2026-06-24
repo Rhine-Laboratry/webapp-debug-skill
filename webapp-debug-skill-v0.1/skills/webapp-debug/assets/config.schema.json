@@ -1,0 +1,232 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/webapp-debug/config.schema.json",
+  "title": "webapp-debug config",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "runtime",
+    "database",
+    "sheets",
+    "playwright"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "database": {
+      "type": "object",
+      "required": [
+        "classification",
+        "destructive_reset",
+        "reset_scope",
+        "expected_host_pattern",
+        "expected_database_pattern",
+        "sentinel",
+        "seed",
+        "cleanup"
+      ],
+      "properties": {
+        "classification": {
+          "enum": [
+            "dedicated",
+            "shared",
+            "unknown"
+          ]
+        },
+        "destructive_reset": {
+          "type": "boolean",
+          "default": false
+        },
+        "reset_scope": {
+          "enum": [
+            "none",
+            "manual",
+            "suite"
+          ]
+        },
+        "expected_host_pattern": {
+          "type": "string"
+        },
+        "expected_database_pattern": {
+          "type": "string"
+        },
+        "sentinel": {
+          "type": "object",
+          "required": [
+            "required",
+            "query",
+            "expected_value"
+          ],
+          "properties": {
+            "required": {
+              "const": true
+            },
+            "query": {
+              "type": "string"
+            },
+            "expected_value": {
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            }
+          }
+        },
+        "seed": {
+          "type": "object",
+          "required": [
+            "destructive",
+            "idempotent",
+            "attach_test_run_id"
+          ],
+          "properties": {
+            "destructive": {
+              "const": false
+            },
+            "idempotent": {
+              "const": true
+            },
+            "attach_test_run_id": {
+              "const": true
+            }
+          }
+        },
+        "cleanup": {
+          "type": "object",
+          "required": [
+            "mode",
+            "scope",
+            "delete_if_ownership_unknown"
+          ],
+          "properties": {
+            "mode": {
+              "const": "always"
+            },
+            "scope": {
+              "const": "current-test-run-only"
+            },
+            "delete_if_ownership_unknown": {
+              "const": false
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "destructive_reset": {
+                "const": true
+              }
+            },
+            "required": [
+              "destructive_reset"
+            ]
+          },
+          "then": {
+            "properties": {
+              "classification": {
+                "const": "dedicated"
+              },
+              "reset_scope": {
+                "enum": [
+                  "manual",
+                  "suite"
+                ]
+              },
+              "expected_host_pattern": {
+                "type": "string",
+                "minLength": 1
+              },
+              "expected_database_pattern": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sentinel": {
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "enum": [
+                  "shared",
+                  "unknown"
+                ]
+              }
+            },
+            "required": [
+              "classification"
+            ]
+          },
+          "then": {
+            "properties": {
+              "destructive_reset": {
+                "const": false
+              },
+              "reset_scope": {
+                "enum": [
+                  "none",
+                  "manual"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "sheets": {
+      "type": "object",
+      "required": [
+        "create_policy",
+        "concurrency",
+        "writer"
+      ],
+      "properties": {
+        "create_policy": {
+          "const": "init-only"
+        },
+        "concurrency": {
+          "const": "single-writer"
+        },
+        "writer": {
+          "const": "skill-only"
+        }
+      }
+    },
+    "playwright": {
+      "type": "object",
+      "required": [
+        "browser",
+        "workers",
+        "retries",
+        "scenario_timeout_ms"
+      ],
+      "properties": {
+        "browser": {
+          "const": "chromium"
+        },
+        "workers": {
+          "const": 1
+        },
+        "retries": {
+          "const": 1
+        },
+        "scenario_timeout_ms": {
+          "type": "integer",
+          "minimum": 1000
+        }
+      }
+    }
+  }
+}

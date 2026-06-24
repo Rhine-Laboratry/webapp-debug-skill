@@ -1,0 +1,14 @@
+# webapp-debug runtime state
+.webapp-debug/auth/
+.webapp-debug/artifacts/
+.webapp-debug/state/
+.webapp-debug/generated-tools/node_modules/
+
+# Playwright authentication contains sensitive cookies and headers
+tests/e2e/.auth/
+tests/e2e/playwright-report/
+tests/e2e/test-results/
+
+# Google service account credentials
+*service-account*.json
+*google-credentials*.json
