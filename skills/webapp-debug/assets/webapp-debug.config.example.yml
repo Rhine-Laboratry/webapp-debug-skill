@@ -153,6 +153,17 @@ risk:
   critical_depth: D
   auto_classify: true
 
+coverage:
+  mode: strict
+  max_discovery_passes: 3
+  minimum_inventory_closure_percent: 100
+  maximum_open_discovery_gaps: 0
+  block_open_gap_risks:
+    - CRITICAL
+    - HIGH
+    - MEDIUM
+    - LOW
+
 artifacts:
   local_dir: .webapp-debug/artifacts
   external_store: optional

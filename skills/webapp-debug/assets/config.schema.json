@@ -5,24 +5,360 @@
   "type": "object",
   "required": [
     "schema_version",
+    "project",
     "runtime",
+    "stack",
+    "scope",
+    "operations",
     "database",
+    "authentication",
     "sheets",
-    "playwright"
+    "playwright",
+    "risk",
+    "coverage",
+    "artifacts",
+    "state"
   ],
   "properties": {
     "schema_version": {
       "const": 1
     },
+    "project": {
+      "$ref": "#/$defs/project"
+    },
+    "runtime": {
+      "$ref": "#/$defs/runtime"
+    },
+    "stack": {
+      "$ref": "#/$defs/stack"
+    },
+    "scope": {
+      "$ref": "#/$defs/scope"
+    },
+    "operations": {
+      "$ref": "#/$defs/operations"
+    },
+    "database": {
+      "$ref": "#/$defs/database"
+    },
+    "authentication": {
+      "$ref": "#/$defs/authentication"
+    },
+    "sheets": {
+      "$ref": "#/$defs/sheets"
+    },
+    "playwright": {
+      "$ref": "#/$defs/playwright"
+    },
+    "risk": {
+      "$ref": "#/$defs/risk"
+    },
+    "coverage": {
+      "$ref": "#/$defs/coverage"
+    },
+    "artifacts": {
+      "$ref": "#/$defs/artifacts"
+    },
+    "state": {
+      "$ref": "#/$defs/state"
+    }
+  },
+  "patternProperties": {
+    "^x-": true
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "project": {
+      "type": "object",
+      "required": [
+        "project_id",
+        "name",
+        "repository_root"
+      ],
+      "properties": {
+        "project_id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "repository_root": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "patternProperties": {
+        "^x-": true
+      },
+      "additionalProperties": false
+    },
+    "runtime": {
+      "type": "object",
+      "required": [
+        "environment",
+        "app",
+        "locale",
+        "timezone"
+      ],
+      "properties": {
+        "environment": {
+          "type": "string",
+          "minLength": 1
+        },
+        "app": {
+          "type": "object",
+          "required": [
+            "base_url",
+            "start_command",
+            "readiness_url",
+            "startup_timeout_seconds"
+          ],
+          "properties": {
+            "base_url": {
+              "type": "string",
+              "format": "uri"
+            },
+            "start_command": {
+              "type": "string"
+            },
+            "readiness_url": {
+              "type": "string",
+              "minLength": 1
+            },
+            "startup_timeout_seconds": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "patternProperties": {
+            "^x-": true
+          },
+          "additionalProperties": false
+        },
+        "locale": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timezone": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "patternProperties": {
+        "^x-": true
+      },
+      "additionalProperties": false
+    },
+    "stack": {
+      "type": "object",
+      "required": [
+        "autodetect",
+        "cakephp",
+        "javascript"
+      ],
+      "properties": {
+        "autodetect": {
+          "type": "boolean"
+        },
+        "cakephp": {
+          "type": "object",
+          "required": [
+            "supported_major_versions",
+            "cakephp_2_mode"
+          ],
+          "properties": {
+            "supported_major_versions": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "integer",
+                "enum": [
+                  3,
+                  4,
+                  5
+                ]
+              }
+            },
+            "cakephp_2_mode": {
+              "const": "generic"
+            }
+          },
+          "patternProperties": {
+            "^x-": true
+          },
+          "additionalProperties": false
+        },
+        "javascript": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "patternProperties": {
+        "^x-": true
+      },
+      "additionalProperties": false
+    },
+    "scope": {
+      "type": "object",
+      "required": [
+        "playwright",
+        "inventory_only",
+        "exclude_paths"
+      ],
+      "properties": {
+        "playwright": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "UI_PAGE",
+              "AJAX_FROM_UI",
+              "UPLOAD",
+              "DOWNLOAD",
+              "EMAIL",
+              "REPORT_CSV",
+              "REPORT_PDF",
+              "CLIENT_INTERACTION"
+            ]
+          }
+        },
+        "inventory_only": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "API_ONLY",
+              "COMMAND_CRON",
+              "QUEUE_ASYNC",
+              "EXTERNAL_INTEGRATION"
+            ]
+          }
+        },
+        "exclude_paths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "patternProperties": {
+        "^x-": true
+      },
+      "additionalProperties": false
+    },
+    "operations": {
+      "type": "object",
+      "required": [
+        "profile",
+        "allow_runtime_override",
+        "allowed_hosts",
+        "create",
+        "update",
+        "delete",
+        "upload_file",
+        "download_file",
+        "generate_report",
+        "send_email",
+        "call_external_api",
+        "execute_payment",
+        "restore_database"
+      ],
+      "properties": {
+        "profile": {
+          "type": "string",
+          "minLength": 1
+        },
+        "allow_runtime_override": {
+          "type": "boolean"
+        },
+        "allowed_hosts": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "create": {
+          "enum": [
+            "allow",
+            "deny"
+          ]
+        },
+        "update": {
+          "enum": [
+            "allow-owned-only",
+            "deny"
+          ]
+        },
+        "delete": {
+          "enum": [
+            "allow-owned-only",
+            "deny"
+          ]
+        },
+        "upload_file": {
+          "enum": [
+            "allow",
+            "deny"
+          ]
+        },
+        "download_file": {
+          "enum": [
+            "allow",
+            "deny"
+          ]
+        },
+        "generate_report": {
+          "enum": [
+            "allow",
+            "deny"
+          ]
+        },
+        "send_email": {
+          "enum": [
+            "redirect-or-capture",
+            "deny"
+          ]
+        },
+        "call_external_api": {
+          "enum": [
+            "allowlisted-only",
+            "deny"
+          ]
+        },
+        "execute_payment": {
+          "const": "deny"
+        },
+        "restore_database": {
+          "enum": [
+            "explicit-only",
+            "deny"
+          ]
+        }
+      },
+      "patternProperties": {
+        "^x-": true
+      },
+      "additionalProperties": false
+    },
     "database": {
       "type": "object",
       "required": [
         "classification",
+        "local_config_candidates",
         "destructive_reset",
         "reset_scope",
+        "reset_command",
         "expected_host_pattern",
         "expected_database_pattern",
         "sentinel",
+        "shared_database",
         "seed",
         "cleanup"
       ],
@@ -34,9 +370,16 @@
             "unknown"
           ]
         },
+        "local_config_candidates": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
         "destructive_reset": {
-          "type": "boolean",
-          "default": false
+          "type": "boolean"
         },
         "reset_scope": {
           "enum": [
@@ -44,6 +387,9 @@
             "manual",
             "suite"
           ]
+        },
+        "reset_command": {
+          "type": "string"
         },
         "expected_host_pattern": {
           "type": "string"
@@ -72,16 +418,48 @@
                 "boolean"
               ]
             }
-          }
+          },
+          "patternProperties": {
+            "^x-": true
+          },
+          "additionalProperties": false
+        },
+        "shared_database": {
+          "type": "object",
+          "required": [
+            "snapshot_restore",
+            "update_existing_data",
+            "delete_existing_data"
+          ],
+          "properties": {
+            "snapshot_restore": {
+              "const": "deny"
+            },
+            "update_existing_data": {
+              "const": "deny"
+            },
+            "delete_existing_data": {
+              "const": "deny"
+            }
+          },
+          "patternProperties": {
+            "^x-": true
+          },
+          "additionalProperties": false
         },
         "seed": {
           "type": "object",
           "required": [
+            "command",
             "destructive",
             "idempotent",
-            "attach_test_run_id"
+            "attach_test_run_id",
+            "tracking_strategy"
           ],
           "properties": {
+            "command": {
+              "type": "string"
+            },
             "destructive": {
               "const": false
             },
@@ -90,14 +468,29 @@
             },
             "attach_test_run_id": {
               "const": true
+            },
+            "tracking_strategy": {
+              "enum": [
+                "column",
+                "embedded-identifier",
+                "tracking-table",
+                "manifest",
+                "auto"
+              ]
             }
-          }
+          },
+          "patternProperties": {
+            "^x-": true
+          },
+          "additionalProperties": false
         },
         "cleanup": {
           "type": "object",
           "required": [
             "mode",
             "scope",
+            "retain_on_failure",
+            "allow_runtime_retain_override",
             "delete_if_ownership_unknown"
           ],
           "properties": {
@@ -107,54 +500,23 @@
             "scope": {
               "const": "current-test-run-only"
             },
+            "retain_on_failure": {
+              "type": "boolean"
+            },
+            "allow_runtime_retain_override": {
+              "type": "boolean"
+            },
             "delete_if_ownership_unknown": {
               "const": false
             }
-          }
+          },
+          "patternProperties": {
+            "^x-": true
+          },
+          "additionalProperties": false
         }
       },
       "allOf": [
-        {
-          "if": {
-            "properties": {
-              "destructive_reset": {
-                "const": true
-              }
-            },
-            "required": [
-              "destructive_reset"
-            ]
-          },
-          "then": {
-            "properties": {
-              "classification": {
-                "const": "dedicated"
-              },
-              "reset_scope": {
-                "enum": [
-                  "manual",
-                  "suite"
-                ]
-              },
-              "expected_host_pattern": {
-                "type": "string",
-                "minLength": 1
-              },
-              "expected_database_pattern": {
-                "type": "string",
-                "minLength": 1
-              },
-              "sentinel": {
-                "properties": {
-                  "query": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                }
-              }
-            }
-          }
-        },
         {
           "if": {
             "properties": {
@@ -183,38 +545,191 @@
             }
           }
         }
-      ]
+      ],
+      "patternProperties": {
+        "^x-": true
+      },
+      "additionalProperties": false
+    },
+    "authentication": {
+      "type": "object",
+      "required": [
+        "require_runtime_confirmation",
+        "strategy_order",
+        "storage_state_dir",
+        "roles"
+      ],
+      "properties": {
+        "require_runtime_confirmation": {
+          "type": "boolean"
+        },
+        "strategy_order": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "seeded-account",
+              "environment-variables",
+              "storage-state",
+              "manual-login"
+            ]
+          }
+        },
+        "storage_state_dir": {
+          "type": "string",
+          "minLength": 1
+        },
+        "roles": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "object",
+            "required": [
+              "username_env",
+              "password_env"
+            ],
+            "properties": {
+              "username_env": {
+                "type": "string",
+                "minLength": 1
+              },
+              "password_env": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "patternProperties": {
+              "^x-": true
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "patternProperties": {
+        "^x-": true
+      },
+      "additionalProperties": false
     },
     "sheets": {
       "type": "object",
       "required": [
+        "spreadsheet_id",
         "create_policy",
+        "service_account_credentials_env",
+        "writer",
         "concurrency",
-        "writer"
+        "lock_ttl_minutes",
+        "batch_size",
+        "human_editable_columns"
       ],
       "properties": {
+        "spreadsheet_id": {
+          "type": "string"
+        },
         "create_policy": {
           "const": "init-only"
+        },
+        "service_account_credentials_env": {
+          "type": "string",
+          "minLength": 1
+        },
+        "writer": {
+          "const": "skill-only"
         },
         "concurrency": {
           "const": "single-writer"
         },
-        "writer": {
-          "const": "skill-only"
+        "lock_ttl_minutes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "batch_size": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "human_editable_columns": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "review_status",
+              "notes",
+              "manual_override",
+              "manual_expected_behavior",
+              "manual_exclusion_reason",
+              "manual_priority"
+            ]
+          }
         }
-      }
+      },
+      "patternProperties": {
+        "^x-": true
+      },
+      "additionalProperties": false
     },
     "playwright": {
       "type": "object",
       "required": [
+        "reuse_existing",
+        "isolated_root",
+        "generated_dir",
+        "fixtures_dir",
+        "pages_dir",
         "browser",
+        "viewport",
         "workers",
         "retries",
-        "scenario_timeout_ms"
+        "scenario_timeout_ms",
+        "expect_timeout_ms",
+        "trace",
+        "video",
+        "screenshot",
+        "devices"
       ],
       "properties": {
+        "reuse_existing": {
+          "type": "boolean"
+        },
+        "isolated_root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "generated_dir": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fixtures_dir": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pages_dir": {
+          "type": "string",
+          "minLength": 1
+        },
         "browser": {
           "const": "chromium"
+        },
+        "viewport": {
+          "type": "object",
+          "required": [
+            "width",
+            "height"
+          ],
+          "properties": {
+            "width": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "patternProperties": {
+            "^x-": true
+          },
+          "additionalProperties": false
         },
         "workers": {
           "const": 1
@@ -224,9 +739,159 @@
         },
         "scenario_timeout_ms": {
           "type": "integer",
-          "minimum": 1000
+          "minimum": 1
+        },
+        "expect_timeout_ms": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "trace": {
+          "const": "retain-on-failure-and-retries"
+        },
+        "video": {
+          "const": "retain-on-failure"
+        },
+        "screenshot": {
+          "const": "only-on-failure"
+        },
+        "devices": {
+          "type": "array"
         }
-      }
+      },
+      "patternProperties": {
+        "^x-": true
+      },
+      "additionalProperties": false
+    },
+    "risk": {
+      "type": "object",
+      "required": [
+        "default_depth",
+        "high_depth",
+        "critical_depth",
+        "auto_classify"
+      ],
+      "properties": {
+        "default_depth": {
+          "const": "B"
+        },
+        "high_depth": {
+          "const": "C"
+        },
+        "critical_depth": {
+          "const": "D"
+        },
+        "auto_classify": {
+          "type": "boolean"
+        }
+      },
+      "patternProperties": {
+        "^x-": true
+      },
+      "additionalProperties": false
+    },
+    "coverage": {
+      "type": "object",
+      "required": [
+        "mode",
+        "max_discovery_passes",
+        "minimum_inventory_closure_percent",
+        "maximum_open_discovery_gaps",
+        "block_open_gap_risks"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "strict",
+            "risk-gated"
+          ]
+        },
+        "max_discovery_passes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "minimum_inventory_closure_percent": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "maximum_open_discovery_gaps": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "block_open_gap_risks": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "CRITICAL",
+              "HIGH",
+              "MEDIUM",
+              "LOW"
+            ]
+          }
+        }
+      },
+      "patternProperties": {
+        "^x-": true
+      },
+      "additionalProperties": false
+    },
+    "artifacts": {
+      "type": "object",
+      "required": [
+        "local_dir",
+        "external_store",
+        "retention_days",
+        "redact_personal_data",
+        "redact_secrets"
+      ],
+      "properties": {
+        "local_dir": {
+          "type": "string",
+          "minLength": 1
+        },
+        "external_store": {
+          "enum": [
+            "optional",
+            "disabled"
+          ]
+        },
+        "retention_days": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "redact_personal_data": {
+          "type": "boolean"
+        },
+        "redact_secrets": {
+          "const": "always"
+        }
+      },
+      "patternProperties": {
+        "^x-": true
+      },
+      "additionalProperties": false
+    },
+    "state": {
+      "type": "object",
+      "required": [
+        "local_dir",
+        "wal_enabled"
+      ],
+      "properties": {
+        "local_dir": {
+          "type": "string",
+          "minLength": 1
+        },
+        "wal_enabled": {
+          "type": "boolean"
+        }
+      },
+      "patternProperties": {
+        "^x-": true
+      },
+      "additionalProperties": false
     }
   }
 }

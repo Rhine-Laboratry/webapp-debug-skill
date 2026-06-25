@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/webapp-debug/google-sheets-schema.schema.json",
+  "title": "webapp-debug Google Sheets schema meta-schema",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tabs",
+    "column_tuple_format"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "tabs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "write_policy",
+          "row_policy",
+          "columns"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "write_policy": {
+            "enum": [
+              "skill-only",
+              "skill-only-except-notes",
+              "skill-only-with-human-override-columns",
+              "skill-only-except-manual-fields"
+            ]
+          },
+          "row_policy": {
+            "enum": [
+              "upsert-by-key",
+              "upsert-by-inventory_id",
+              "upsert-by-scenario_id",
+              "upsert-by-defect_id",
+              "append-only"
+            ]
+          },
+          "columns": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "enum": [
+                    "string",
+                    "multiline",
+                    "enum",
+                    "boolean",
+                    "integer",
+                    "datetime",
+                    "date",
+                    "string[]"
+                  ]
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "boolean"
+                }
+              ],
+              "minItems": 4,
+              "maxItems": 4
+            }
+          }
+        },
+        "patternProperties": {
+          "^x-": true
+        },
+        "additionalProperties": false
+      }
+    },
+    "column_tuple_format": {
+      "const": [
+        "name",
+        "type",
+        "required",
+        "human_editable"
+      ]
+    }
+  },
+  "patternProperties": {
+    "^x-": true
+  },
+  "additionalProperties": false
+}
