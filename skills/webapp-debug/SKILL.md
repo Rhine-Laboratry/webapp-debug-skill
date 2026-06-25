@@ -1,8 +1,6 @@
 ---
 name: webapp-debug
-description: コードベースとブラウザからWebアプリの機能を棚卸しし、日本語Scenario、Playwrightテスト、Google Sheetsの進捗・不具合記録を生成する。明示されたinit/discover/test/full/resume/reportモードでのみ実行する。
-disable-model-invocation: true
-argument-hint: "init|discover|test|full|resume|report [--config <path>] [--profile <name>]"
+description: コードベースとブラウザからWebアプリの機能を棚卸しし、日本語Scenario、Playwrightテスト、Google Sheetsの進捗・不具合記録を生成する。init、discover、test、full、resume、reportを明示指定した場合に使用する。
 ---
 
 # Webapp Debug

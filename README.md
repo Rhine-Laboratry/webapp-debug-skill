@@ -4,13 +4,19 @@ CakePHP／JavaScriptを含むWebアプリケーションを対象に、コード
 
 ## 配置
 
-このパッケージをリポジトリ直下へコピーしてください。次の2つのラッパーが、共通の正準Skillを読み込みます。
+このパッケージは、正準Skillと各エージェント用ラッパーをrepo内に含みます。次の2つのラッパーが、共通の正準Skillを読み込みます。
 
 - Codex: `.agents/skills/webapp-debug/SKILL.md`
 - Claude Code: `.claude/skills/webapp-debug/SKILL.md`
 - 共通の正準Skill: `skills/webapp-debug/SKILL.md`
 
 ラッパーから共通Skillへの相対パスを維持するため、ディレクトリ構成は変更しないでください。
+
+dot-directoryもGit追跡対象です。次のコマンドで配置を確認できます。
+
+```bash
+git ls-files .agents .claude
+```
 
 ## 呼び出し
 
@@ -38,13 +44,16 @@ Claude Code:
 
 モードを省略した場合はヘルプだけを返し、副作用のある処理を開始しません。
 
+初回導線は `init` です。`report` は既存のSheetsやローカル証跡メタデータを読むモードであり、初回セットアップや初期同期には使用しません。
+
 ## 初期導入
 
-1. `skills/webapp-debug/assets/webapp-debug.config.example.yml` を `.webapp-debug/config.yml` へコピーします。
-2. `spreadsheet_id`、ローカルアプリの起動方法、接続先DBの安全条件を設定します。
-3. Googleサービスアカウントの認証情報はリポジトリへ保存せず、`GOOGLE_APPLICATION_CREDENTIALS` 等の環境変数から渡します。
-4. `.gitignore` に `skills/webapp-debug/assets/gitignore.fragment` の内容を反映します。
-5. 最初に `init` を実行して、設定、Google Sheetsのタブ、Playwright環境を検査します。
+1. `$webapp-debug init` または `/webapp-debug init` を最初に実行します。
+2. `skills/webapp-debug/assets/webapp-debug.config.example.yml` を `.webapp-debug/config.yml` へコピーします。
+3. `spreadsheet_id`、ローカルアプリの起動方法、接続先DBの安全条件を設定します。
+4. Googleサービスアカウントの認証情報はリポジトリへ保存せず、`GOOGLE_APPLICATION_CREDENTIALS` 等の環境変数から渡します。
+5. `.gitignore` に `skills/webapp-debug/assets/gitignore.fragment` の内容を反映します。
+6. `init` で設定、Google Sheetsのタブ、Playwright環境を検査します。`report` は初期化後の既存状態確認に限定します。
 
 ## 正準データの範囲
 

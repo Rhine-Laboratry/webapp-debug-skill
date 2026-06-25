@@ -4,6 +4,22 @@
 
 このディレクトリの内容を対象リポジトリ直下へコピーする。
 
+CodexとClaude Codeのラッパーも実ファイルとして含める。
+
+```text
+.agents/skills/webapp-debug/SKILL.md
+.agents/skills/webapp-debug/agents/openai.yaml
+.claude/skills/webapp-debug/SKILL.md
+skills/webapp-debug/SKILL.md
+skills/webapp-debug/agents/openai.yaml
+```
+
+dot-directoryがGitで追跡されていることを確認する。
+
+```bash
+git ls-files .agents .claude
+```
+
 ## 2. 設定作成
 
 ```bash
@@ -44,6 +60,8 @@ cat skills/webapp-debug/assets/gitignore.fragment >> .gitignore
 重複行は整理する。
 
 ## 5. 初期化
+
+初回導線は `init`。`report` は既存状態を読み取るモードであり、初期設定や初回Sheets作成には使わない。
 
 Codex:
 
