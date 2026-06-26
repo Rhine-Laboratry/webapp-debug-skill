@@ -113,6 +113,11 @@ class FakeSheetsBackend:
         for key in keys:
             self._metadata.pop(key, None)
 
+    def set_tabs_direct(self, tabs: Mapping[str, Sequence[str]]) -> None:
+        """Replace tabs directly for race-condition and read-back tests."""
+
+        self._tabs = {str(name): list(headers) for name, headers in tabs.items()}
+
     def _state(self) -> SpreadsheetState:
         return SpreadsheetState(
             spreadsheet_id=str(self.spreadsheet_id),
