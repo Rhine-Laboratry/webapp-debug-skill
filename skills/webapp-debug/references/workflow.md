@@ -25,6 +25,9 @@
 - 静的Inventoryとブラウザ観測をsource fingerprint、route、symbol、roleで照合する。
 - コードだけにある項目、ブラウザだけにある項目、矛盾を明示する。
 - 暫定仕様の根拠をScenarioへ保存する。
+- 各discovery pass後にcoverage gateを評価する。`coverage.max_discovery_passes` を超えて無制限に反復しない。
+- strict modeでは全有効Inventoryが `MAPPED` または `EXCLUDED_WITH_REASON` になるまでtestへ進まない。
+- risk-gated modeは明示設定時だけ有効で、threshold達成時も残存 `DISCOVERY_GAP` を削除しない。
 
 ## Phase 4: Scenario modeling
 
@@ -58,4 +61,5 @@
 - 証跡取得後、現在run所有データだけを子から親の順にcleanupする。
 - cleanup結果を必ず記録する。
 - 4つの完了条件を検証する。
+- coverage gate未達ならtestへ進まず、残件、risk、reason code、最大pass到達有無を示す。
 - 未完了なら残件と理由を示す。

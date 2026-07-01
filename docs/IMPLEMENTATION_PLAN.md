@@ -693,6 +693,10 @@ feat: add safe sheets initialization and state controls
 
 # Phase 4: Bounded discoveryとcoverage gate
 
+Phase 4A status: 完了。ローカル `inventory-json` 入力に対するbounded discovery / coverage gate evaluator、status/risk model、`scripts/evaluate_coverage.py`、unit test、SKILL/README/workflow/status-model更新を実装済み。
+
+Phase 4全体は未完了。Phase 4BとしてGoogle Sheetsからのread-only snapshot export、Sheets連携済みreport表示、必要な追加ドキュメント更新を残す。
+
 ## 目的
 
 「全InventoryがMAPPEDになるまで反復」を上限なしのloopにせず、strictまたは明示的risk thresholdでtest phaseへの移行を判定する。

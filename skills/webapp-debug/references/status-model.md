@@ -4,14 +4,21 @@
 
 ```text
 NEW
-  -> DISCOVERING
+  -> DISCOVERED
   -> MAPPED
   -> EXCLUDED_WITH_REASON
   -> DISCOVERY_GAP
   -> UNREACHABLE
+  -> BLOCKED
+  -> RETIRED
+  -> MERGED
 ```
 
-完了状態は `MAPPED` と `EXCLUDED_WITH_REASON` のみ。`DISCOVERY_GAP` と `UNREACHABLE` は解消または理由付き除外が必要。
+完了状態は `MAPPED` と `EXCLUDED_WITH_REASON` のみ。`NEW`、`DISCOVERED`、`UNREACHABLE`、`DISCOVERY_GAP`、`BLOCKED` はopen gapとして扱う。`RETIRED` と `MERGED` はcoverage分母から除外する。
+
+strict coverageではopen gapが1件でも残ればtestへ進まない。risk-gated coverageでは明示設定されたthresholdで移行可否を判定できるが、残存gapは削除・隠蔽しない。
+
+未知statusは安全なreason codeでBLOCKED扱いにする。raw row全体や秘密値を出力しない。
 
 ## Scenario lifecycle_status
 
