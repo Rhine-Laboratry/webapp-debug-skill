@@ -18,6 +18,7 @@ from webapp_debug_skill.sheets_client import (
     BatchResult,
     ClearMetadata,
     CreateTab,
+    InitialSheetSpec,
     Mutation,
     SetMetadata,
     SheetTab,
@@ -62,6 +63,14 @@ class RawSpreadsheetSnapshot:
     sheet_ids: Mapping[str, int]
     headers: Mapping[str, tuple[str, ...]]
     metadata_rows: Mapping[str, MetadataRow]
+
+
+@dataclass(frozen=True)
+class MetadataStorageInspection:
+    """Safe Metadata storage inspection result."""
+
+    status: str
+    reason_code: str | None = None
 
 
 def utc_now() -> datetime:
@@ -211,9 +220,7 @@ class GoogleSheetsBackend:
             spreadsheet_id=snapshot.spreadsheet_id,
             metadata=tuple(sorted((key, row.value) for key, row in snapshot.metadata_rows.items())),
             tabs=tuple(
-                SheetTab(title, headers)
-                for title, headers in sorted(snapshot.headers.items())
-                if title != METADATA_TAB
+                SheetTab(title, headers) for title, headers in sorted(snapshot.headers.items())
             ),
         )
 
@@ -250,17 +257,27 @@ class GoogleSheetsBackend:
             ) from None
         return BatchResult(applied_mutations=len(mutations), spreadsheet_state=read_back)
 
-    def create_spreadsheet(self, title: str) -> SpreadsheetState:
+    def create_spreadsheet(
+        self,
+        title: str,
+        *,
+        initial_tabs: tuple[InitialSheetSpec, ...] = (),
+    ) -> SpreadsheetState:
         """Create a spreadsheet without Metadata bootstrap."""
 
         if title == "":
             raise SheetsBatchInvalidError("title", "EMPTY")
         validate_plain_string("title", title)
+        body: dict[str, Any] = {"properties": {"title": title}}
+        if initial_tabs:
+            body["sheets"] = [
+                self._initial_sheet_body(index + 1, spec) for index, spec in enumerate(initial_tabs)
+            ]
         try:
             response = (
                 self.service.spreadsheets()
                 .create(
-                    body={"properties": {"title": title}},
+                    body=body,
                 )
                 .execute(num_retries=0)
             )
@@ -282,6 +299,89 @@ class GoogleSheetsBackend:
                 exit_code=EXIT_ARGUMENT_OR_SCHEMA,
             )
         return SpreadsheetState(spreadsheet_id=spreadsheet_id)
+
+    def inspect_metadata_storage(self) -> MetadataStorageInspection:
+        """Inspect Metadata tab availability without creating it."""
+
+        spreadsheet = self._execute_read(
+            self.service.spreadsheets().get(
+                spreadsheetId=self.spreadsheet_id,
+                fields="spreadsheetId,sheets(properties(sheetId,title))",
+            ),
+            "get",
+        )
+        sheet_ids = self._parse_sheet_ids(spreadsheet)
+        if METADATA_TAB not in sheet_ids:
+            if any(title.lower() == METADATA_TAB.lower() for title in sheet_ids):
+                return MetadataStorageInspection("CONFLICT", "SHEETS_BOOTSTRAP_CONFLICT")
+            return MetadataStorageInspection("MISSING", "SHEETS_INIT_BOOTSTRAP_REQUIRED")
+        try:
+            values = self._execute_read(
+                self.service.spreadsheets()
+                .values()
+                .batchGet(
+                    spreadsheetId=self.spreadsheet_id,
+                    ranges=[f"{a1_quote_sheet_name(METADATA_TAB)}!A:D"],
+                    majorDimension="ROWS",
+                    valueRenderOption="FORMULA",
+                ),
+                "values.batchGet",
+            )
+            value_ranges = self._parse_value_ranges(values, 1)
+            rows = value_ranges[0].get("values", [])
+            if not isinstance(rows, list):
+                raise self._response_invalid("values.values", "LIST_REQUIRED")
+            self._parse_metadata_rows([self._normalize_row(row) for row in rows])
+        except SheetsBackendError as exc:
+            return MetadataStorageInspection("INVALID", exc.code)
+        return MetadataStorageInspection("READY")
+
+    def bootstrap_metadata_storage(self) -> BatchResult:
+        """Create Metadata tab/header as one atomic batchUpdate and read back."""
+
+        inspection = self.inspect_metadata_storage()
+        if inspection.status == "READY":
+            return BatchResult(applied_mutations=0, spreadsheet_state=self.read_spreadsheet())
+        if inspection.status != "MISSING":
+            raise SheetsBackendError(
+                inspection.reason_code or "SHEETS_BOOTSTRAP_CONFLICT",
+                "Metadata",
+                "BOOTSTRAP_BLOCKED",
+                exit_code=EXIT_POLICY_BLOCKED,
+            )
+        spreadsheet = self._execute_read(
+            self.service.spreadsheets().get(
+                spreadsheetId=self.spreadsheet_id,
+                fields="spreadsheetId,sheets(properties(sheetId,title))",
+            ),
+            "get",
+        )
+        sheet_ids = self._parse_sheet_ids(spreadsheet)
+        next_sheet_id = max(sheet_ids.values(), default=0) + 1
+        body = {
+            "requests": [
+                {"addSheet": {"properties": {"sheetId": next_sheet_id, "title": METADATA_TAB}}},
+                self._headers_request(next_sheet_id, 0, METADATA_HEADERS),
+            ],
+            "includeSpreadsheetInResponse": False,
+        }
+        try:
+            self.service.spreadsheets().batchUpdate(
+                spreadsheetId=self.spreadsheet_id,
+                body=body,
+            ).execute(num_retries=0)
+        except Exception as exc:
+            raise classify_google_error(exc, operation="batchUpdate", after_write=True) from None
+        try:
+            state = self.read_spreadsheet()
+        except SheetsBackendError as exc:
+            raise SheetsBackendError(
+                "SHEETS_WRITE_OUTCOME_UNKNOWN",
+                exc.path,
+                "UNKNOWN_WRITE_RESULT",
+                may_have_applied=True,
+            ) from None
+        return BatchResult(applied_mutations=2, spreadsheet_state=state)
 
     def _fetch_snapshot(self) -> RawSpreadsheetSnapshot:
         spreadsheet = self._execute_read(
@@ -328,6 +428,7 @@ class GoogleSheetsBackend:
             normalized_rows = [self._normalize_row(row) for row in rows]
             if title == METADATA_TAB:
                 metadata_rows = self._parse_metadata_rows(normalized_rows)
+                headers[title] = tuple(normalized_rows[0]) if normalized_rows else ()
             else:
                 header = tuple(normalized_rows[0]) if normalized_rows else ()
                 for index, value in enumerate(header):
@@ -571,6 +672,23 @@ class GoogleSheetsBackend:
                 "fields": "userEnteredValue",
             }
         }
+
+    def _initial_sheet_body(self, sheet_id: int, spec: InitialSheetSpec) -> dict[str, Any]:
+        validate_plain_string("initial_tabs.title", spec.title)
+        for header in spec.headers:
+            validate_plain_string("initial_tabs.headers", header)
+        sheet: dict[str, Any] = {"properties": {"sheetId": sheet_id, "title": spec.title}}
+        if spec.headers:
+            sheet["data"] = [
+                {
+                    "rowData": [
+                        {"values": [string_cell(header) for header in spec.headers]},
+                    ],
+                    "startRow": 0,
+                    "startColumn": 0,
+                }
+            ]
+        return sheet
 
     def _response_invalid(self, path: str, reason: str) -> SheetsBackendError:
         return SheetsBackendError(

@@ -97,6 +97,14 @@ class BatchResult:
     spreadsheet_state: SpreadsheetState
 
 
+@dataclass(frozen=True)
+class InitialSheetSpec:
+    """Initial tab/header specification for spreadsheet creation."""
+
+    title: str
+    headers: tuple[str, ...] = ()
+
+
 class SheetsMutation:
     """Marker base class for typed Sheets mutations."""
 
@@ -152,7 +160,12 @@ class SheetsBackend(Protocol):
     def apply_batch(self, mutations: Sequence[Mutation]) -> BatchResult:
         """Apply all mutations atomically, in order."""
 
-    def create_spreadsheet(self, title: str) -> SpreadsheetState:
+    def create_spreadsheet(
+        self,
+        title: str,
+        *,
+        initial_tabs: tuple[InitialSheetSpec, ...] = (),
+    ) -> SpreadsheetState:
         """Create a spreadsheet. Fake implements this; real Google backend is Phase 3C."""
 
 

@@ -157,6 +157,14 @@ class FakeSpreadsheetsResource:
             self.service.sheet_ids = {}
             self.service.rows = {}
             self.service.title = title
+            raw_sheets = copied_body.get("sheets", [])
+            if isinstance(raw_sheets, list):
+                for index, sheet in enumerate(raw_sheets):
+                    properties = sheet.get("properties", {}) if isinstance(sheet, Mapping) else {}
+                    sheet_title = str(properties.get("title", f"Sheet{index + 1}"))
+                    sheet_id = int(properties.get("sheetId", index + 1))
+                    self.service.sheet_ids[sheet_title] = sheet_id
+                    self.service.rows[sheet_title] = self.service.rows_from_create_sheet(sheet)
             return {"spreadsheetId": self.service.spreadsheet_id}
 
         return FakeGoogleRequest(self.service, "create", action, payload={"body": copied_body})
@@ -270,3 +278,36 @@ class FakeGoogleSheetsService:
 
     def snapshot(self) -> dict[str, list[list[str]]]:
         return copy.deepcopy(self.rows)
+
+    def rows_from_create_sheet(self, sheet: Any) -> list[list[str]]:
+        rows: list[list[str]] = []
+        if not isinstance(sheet, Mapping):
+            return rows
+        data_items = sheet.get("data", [])
+        if not isinstance(data_items, list):
+            return rows
+        for data in data_items:
+            if not isinstance(data, Mapping):
+                continue
+            start_row = int(data.get("startRow", 0))
+            start_column = int(data.get("startColumn", 0))
+            row_data = data.get("rowData", [])
+            if not isinstance(row_data, list):
+                continue
+            for offset, row in enumerate(row_data):
+                if not isinstance(row, Mapping):
+                    continue
+                values = row.get("values", [])
+                if not isinstance(values, list):
+                    continue
+                row_index = start_row + offset
+                while len(rows) <= row_index:
+                    rows.append([])
+                while len(rows[row_index]) < start_column:
+                    rows[row_index].append("")
+                for cell in values:
+                    user_value = (
+                        cell.get("userEnteredValue", {}) if isinstance(cell, Mapping) else {}
+                    )
+                    rows[row_index].append(str(user_value.get("stringValue", "")))
+        return rows

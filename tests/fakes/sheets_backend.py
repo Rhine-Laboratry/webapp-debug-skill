@@ -10,6 +10,7 @@ from webapp_debug_skill.sheets_client import (
     BatchResult,
     ClearMetadata,
     CreateTab,
+    InitialSheetSpec,
     Mutation,
     SetMetadata,
     SheetTab,
@@ -95,7 +96,12 @@ class FakeSheetsBackend:
             )
         return result
 
-    def create_spreadsheet(self, title: str) -> SpreadsheetState:
+    def create_spreadsheet(
+        self,
+        title: str,
+        *,
+        initial_tabs: tuple[InitialSheetSpec, ...] = (),
+    ) -> SpreadsheetState:
         """Create a deterministic fake spreadsheet."""
 
         if self.fail_before_apply:
@@ -104,7 +110,7 @@ class FakeSheetsBackend:
         self.call_log.append(("create_spreadsheet", title))
         self.spreadsheet_id = f"fake-{self.create_count}"
         self._metadata = {}
-        self._tabs = {}
+        self._tabs = {spec.title: list(spec.headers) for spec in initial_tabs}
         return self._state()
 
     def set_metadata_direct(self, values: Mapping[str, str]) -> None:
