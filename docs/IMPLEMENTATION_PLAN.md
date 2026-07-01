@@ -887,7 +887,9 @@ feat: add bounded discovery and risk-based coverage gates
 
 Phase 5A status: 完了。GitHub Actions CI、CHANGELOG、release checklist、CI/documentation static unit test、README/INSTALL/IMPLEMENTATION_PLAN更新を実装済み。
 
-Phase 5全体は未完了。Phase 5B以降としてoptional release automation、CakePHP discovery preparation、package versioning decisionを残す。
+Phase 5B status: 完了予定。v0.2.0 release preparation、package versioning方針、release note草案、`scripts/release_check.py`、CIへのrelease check追加、unit test、README/INSTALL/CHANGELOG/RELEASE_CHECKLIST更新を対象とする。
+
+Phase 5全体のうち、GitHub Release automation、PyPI publish、Docker publish、tag作成自動化はv0.2 runtime hardeningの範囲外として残す。CakePHP discovery preparationとPlaywright generationはPhase 6以降。
 
 ## 目的
 
@@ -981,6 +983,21 @@ Phase 5Aでは次を追加する。
 CIはPython 3.11、3.12、3.13でunit test、integration skip確認、ruff、format check、validator、CLI help、pip checkを実行する。CIではGoogle credential env、実Spreadsheet ID、Drive API、DB、Playwright、CakePHP parserを使わない。
 
 Phase 5AではGitHub release automation、PyPI publish、Docker image build、tag作成、CakePHP discovery preparation、package versioning decisionを実装しない。
+
+## 5.5 Phase 5B release preparation
+
+Phase 5Bでは次を追加する。
+
+- `docs/RELEASE_NOTES_v0.2.0.md`
+- `scripts/release_check.py`
+- `tests/unit/test_release_check.py`
+- `tests/unit/test_versioning.py`
+
+version sourceは `pyproject.toml` の `project.version` とし、`src/webapp_debug_skill/__init__.py` の `__version__` が存在する場合は同じ値に固定する。準備対象versionは `0.2.0`、tag表記は `v0.2.0` とする。
+
+`release_check.py` はversion、release docs、CI workflow、required scripts/assets、tracked credential-like files、tracked cache files、secret marker混入を検査する。git tag、commit、push、GitHub Release、PyPI publish、Docker publishは行わない。
+
+Phase 5BではCakePHP discovery engine、JavaScript parser、Playwright Scenario generator、Playwright runner、実Google API、DB接続、ブラウザ起動を実装しない。
 
 ## Phase 5受け入れ条件
 

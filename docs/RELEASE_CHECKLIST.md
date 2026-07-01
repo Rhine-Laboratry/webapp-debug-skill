@@ -22,13 +22,15 @@ python scripts/validate_config.py \
 python scripts/init_sheets.py --help
 python scripts/evaluate_coverage.py --help
 python scripts/export_sheets_snapshot.py --help
+python scripts/release_check.py --version 0.2.0
+python scripts/release_check.py --version 0.2.0 --format json
 ```
 
 `python -m pytest tests/integration -q` should skip real Google integration tests unless explicit opt-in environment variables are set.
 
 ## CI Required Checks
 
-The `CI` GitHub Actions workflow must pass for Python 3.11, 3.12, and 3.13. CI runs package checks, unit tests, integration skip confirmation, ruff, format check, validators, and CLI help checks.
+The `CI` GitHub Actions workflow must pass for Python 3.11, 3.12, and 3.13. CI runs package checks, unit tests, integration skip confirmation, ruff, format check, validators, CLI help checks, and `scripts/release_check.py --version 0.2.0`.
 
 CI must not set Google credential environment variables, service account key paths, real Spreadsheet IDs, DB connection values, Playwright browser runs, or CakePHP parser commands.
 
@@ -52,10 +54,21 @@ When `scripts/init_sheets.py --create` is used, the created Spreadsheet is not a
 ## Tag Readiness
 
 - `git status --short --branch` is clean.
+- `python scripts/release_check.py --version 0.2.0` passes locally.
+- GitHub Actions `CI` is green for the commit to be tagged.
 - README, INSTALL, DECISIONS, CHANGELOG, and this checklist match the implemented behavior.
+- `docs/RELEASE_NOTES_v0.2.0.md` exists and matches the release scope.
 - `docs/IMPLEMENTATION_PLAN.md` does not mark future phases complete.
 - Known limitations still list CakePHP discovery, JavaScript parsing, Playwright generation/runner orchestration, Drive API sharing/deletion, and binary artifact PII redaction as unimplemented.
 - Version bump and release automation policy is still undecided unless a later phase records a concrete decision.
+
+Tag creation is manual and must not happen until all checks above are true. Example only:
+
+```bash
+git tag -a v0.2.0 -m "v0.2.0"
+```
+
+GitHub Release creation is also manual. PyPI and Docker publishing are not supported by v0.2.0 release preparation.
 
 ## Release Notes
 

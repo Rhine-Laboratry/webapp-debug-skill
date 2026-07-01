@@ -73,3 +73,9 @@ jobs:
 
       - name: Check snapshot export help
         run: python scripts/export_sheets_snapshot.py --help
+
+      - name: Check release readiness
+        run: python scripts/release_check.py --version 0.2.0
+
+      - name: Check release readiness JSON
+        run: python scripts/release_check.py --version 0.2.0 --format json

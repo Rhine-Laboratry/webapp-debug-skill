@@ -16,11 +16,13 @@ All notable changes to this project are recorded here.
 - Bounded coverage evaluator with strict and explicit risk-gated modes.
 - Read-only Google Sheets snapshot export for coverage/report JSON input.
 - GitHub Actions CI for tests, integration skip confirmation, lint, validators, CLI help, and package checks.
+- Release notes draft and `scripts/release_check.py` readiness self-check for the `v0.2.0` target.
 
 ### Changed
 
 - README, INSTALL, Skill docs, and implementation plan now distinguish implemented v0.2 hardening helpers from future discovery and test generation work.
 - Google integration tests are documented as opt-in and are not part of default CI.
+- Package versioning is managed by `pyproject.toml`; `src/webapp_debug_skill/__init__.py` mirrors the same `0.2.0` version.
 
 ### Security
 
