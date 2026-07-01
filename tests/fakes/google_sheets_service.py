@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+import re
 from typing import Any
 
 
@@ -228,6 +229,13 @@ class FakeGoogleSheetsService:
             return copy.deepcopy([row[:4] for row in rows])
         if selector == "1:1":
             return copy.deepcopy(rows[:1])
+        bounded = re.fullmatch(r"([A-Z]+)(\d+):([A-Z]+)(\d+)", selector)
+        if bounded:
+            start_col = self.column_index(bounded.group(1))
+            start_row = int(bounded.group(2)) - 1
+            end_col = self.column_index(bounded.group(3))
+            end_row = int(bounded.group(4))
+            return copy.deepcopy([row[start_col:end_col] for row in rows[start_row:end_row]])
         raise AssertionError(f"unsupported fake range: {a1_range}")
 
     def apply_batch_update(self, body: Mapping[str, Any]) -> None:
@@ -275,6 +283,12 @@ class FakeGoogleSheetsService:
         title_part, selector = a1_range.rsplit("'!", 1)
         title = title_part[1:].replace("''", "'")
         return title, selector
+
+    def column_index(self, letters: str) -> int:
+        index = 0
+        for char in letters:
+            index = index * 26 + (ord(char) - ord("A") + 1)
+        return index - 1
 
     def snapshot(self) -> dict[str, list[list[str]]]:
         return copy.deepcopy(self.rows)

@@ -231,6 +231,44 @@ class GoogleSheetsBackend:
         wanted = set(keys)
         return {key: row.value for key, row in snapshot.metadata_rows.items() if key in wanted}
 
+    def list_sheet_titles(self) -> tuple[str, ...]:
+        """Read spreadsheet tab titles without mutation."""
+
+        spreadsheet = self._execute_read(
+            self.service.spreadsheets().get(
+                spreadsheetId=self.spreadsheet_id,
+                fields="spreadsheetId,sheets(properties(sheetId,title))",
+            ),
+            "get",
+        )
+        return tuple(self._parse_sheet_ids(spreadsheet).keys())
+
+    def read_value_ranges(self, ranges: Mapping[str, str]) -> dict[str, list[list[str]]]:
+        """Read bounded A1 ranges keyed by logical tab name."""
+
+        if not ranges:
+            return {}
+        ordered_items = list(ranges.items())
+        response = self._execute_read(
+            self.service.spreadsheets()
+            .values()
+            .batchGet(
+                spreadsheetId=self.spreadsheet_id,
+                ranges=[a1_range for _name, a1_range in ordered_items],
+                majorDimension="ROWS",
+                valueRenderOption="FORMULA",
+            ),
+            "values.batchGet",
+        )
+        value_ranges = self._parse_value_ranges(response, len(ordered_items))
+        result: dict[str, list[list[str]]] = {}
+        for (tab_name, _range), value_range in zip(ordered_items, value_ranges, strict=True):
+            rows = value_range.get("values", [])
+            if not isinstance(rows, list):
+                raise self._response_invalid("values.values", "LIST_REQUIRED")
+            result[tab_name] = [self._normalize_row(row) for row in rows]
+        return result
+
     def apply_batch(self, mutations: Sequence[Mutation]) -> BatchResult:
         """Translate domain mutations into a single Google batchUpdate call."""
 

@@ -128,7 +128,23 @@ python scripts/init_sheets.py \
 
 `--create` は補助機能です。サービスアカウントが作成したSpreadsheetはユーザーのDriveへ自動共有されず、このSkillはDrive API共有を行いません。
 
-## 8. Opt-in統合テスト
+## 8. Sheets snapshot exportとcoverage評価
+
+Google Sheetsの現在状態をcoverage evaluatorへ渡す場合は、read-only snapshotをJSONへexportします。このCLIはSheetsへのwrite、lock、WAL、bootstrap、config更新を行いません。
+
+```bash
+python scripts/export_sheets_snapshot.py \
+  --config .webapp-debug/config.yml \
+  --schema skills/webapp-debug/assets/google-sheets-schema.json \
+  --output .webapp-debug/state/sheets-snapshot.json
+
+python scripts/evaluate_coverage.py \
+  --config .webapp-debug/config.yml \
+  --inventory-json .webapp-debug/state/sheets-snapshot.json \
+  --current-pass 1
+```
+
+## 9. Opt-in統合テスト
 
 既定ではskipされます。
 
@@ -160,7 +176,7 @@ python -m pytest tests/integration -q
 
 作成されたSpreadsheetは削除されません。共有設定も変更されません。
 
-## 9. Git除外
+## 10. Git除外
 
 ```bash
 cat skills/webapp-debug/assets/gitignore.fragment >> .gitignore
@@ -168,7 +184,7 @@ cat skills/webapp-debug/assets/gitignore.fragment >> .gitignore
 
 重複行は整理します。credential、`.webapp-debug/`、WAL、artifact、Playwright auth stateをGitに追加しないでください。
 
-## 10. トラブルシューティング
+## 11. トラブルシューティング
 
 - `GOOGLE_CREDENTIAL_ENV_MISSING`: configのcredential env名が空、または環境変数が未設定です。
 - `GOOGLE_CREDENTIAL_FILE_UNSAFE`: credential fileがsymlink、リポジトリ内、またはpermission不安全です。
@@ -177,7 +193,9 @@ cat skills/webapp-debug/assets/gitignore.fragment >> .gitignore
 - `SHEETS_LOCK_HELD`: 別実行のcooperative lockが有効です。単一ライター運用を確認してください。
 - `SHEETS_WRITE_OUTCOME_UNKNOWN`: 外部writeの結果が不明です。WAL resumeやread-backで状態確認してください。
 - `CONFIG_TARGET_UNSAFE`: config write対象が存在しない、symlink、directory、またはcanonical assetです。
+- `SHEETS_SNAPSHOT_TAB_MISSING`: snapshot対象のcanonical tabがSpreadsheetにありません。初期化状態を確認してください。
+- `SHEETS_SNAPSHOT_HEADER_CONFLICT`: snapshot対象tabのheaderがcanonical schemaと完全一致していません。未知の末尾列は許可されますが、既定列の順序、大小文字、空列、重複、formula-like headerは拒否されます。
 
-## 11. 次の実行
+## 12. 次の実行
 
 初回導線は `init` です。`discover` は非破壊の静的解析から始まり、DBガード未成立の場合はブラウザ探索をblockします。

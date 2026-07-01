@@ -695,7 +695,9 @@ feat: add safe sheets initialization and state controls
 
 Phase 4A status: 完了。ローカル `inventory-json` 入力に対するbounded discovery / coverage gate evaluator、status/risk model、`scripts/evaluate_coverage.py`、unit test、SKILL/README/workflow/status-model更新を実装済み。
 
-Phase 4全体は未完了。Phase 4BとしてGoogle Sheetsからのread-only snapshot export、Sheets連携済みreport表示、必要な追加ドキュメント更新を残す。
+Phase 4B status: 完了。Google Sheetsからのread-only snapshot export、`scripts/export_sheets_snapshot.py`、snapshot parser／atomic JSON output、Google backend read-only range API、unit test、SKILL/README/INSTALL更新を実装済み。
+
+Phase 5は未着手。CI整備、CHANGELOG、release readinessは後続に残す。
 
 ## 目的
 
@@ -711,8 +713,13 @@ skills/webapp-debug/references/status-model.md
 skills/webapp-debug/assets/webapp-debug.config.example.yml
 skills/webapp-debug/assets/config.schema.json
 scripts/evaluate_coverage.py
+scripts/export_sheets_snapshot.py
 src/webapp_debug_skill/coverage.py
+src/webapp_debug_skill/sheets_snapshot.py
+src/webapp_debug_skill/sheets_snapshot_cli.py
 tests/unit/test_coverage.py
+tests/unit/test_sheets_snapshot.py
+tests/unit/test_sheets_snapshot_cli.py
 README.md
 DECISIONS.md
 ```
@@ -808,7 +815,31 @@ python scripts/evaluate_coverage.py \
 
 純粋関数 `evaluate_inventory(rows, policy)` を分離し、Sheetsなしでunit testする。
 
-## 4.5 SKILLの修正
+## 4.5 `export_sheets_snapshot.py`
+
+CLI:
+
+```bash
+python scripts/export_sheets_snapshot.py \
+  --config .webapp-debug/config.yml \
+  --schema skills/webapp-debug/assets/google-sheets-schema.json \
+  --output .webapp-debug/state/sheets-snapshot.json \
+  [--tabs Inventory,Scenarios,Defects] \
+  [--max-rows-per-tab 10000] \
+  [--format text|json] \
+  [--force]
+```
+
+- Google Sheets APIはread-onlyの `spreadsheets.get` と `values.batchGet` だけを使う。
+- `execute(num_retries=0)` を維持し、retryは既存のbounded read retry policy側で制御する。
+- Canonical schemaのheader prefixを大小文字・順序込みで検証する。
+- 未知の末尾列は保持しないが、warningと件数をsnapshot summaryに残す。
+- secret-like column、Authorization／Cookie相当のinline値、URL userinfo、secret query parameterをredactする。
+- snapshot JSONはPhase 4Aの `evaluate_coverage.py --inventory-json` と互換のtop-level `Inventory` を含む。
+- outputはatomic writeし、既存fileは `--force` なしで拒否し、config/schemaと同一pathやsymlink targetを拒否する。
+- Sheets write、lock、WAL、bootstrap、config更新、Drive API、DB、Playwrightは行わない。
+
+## 4.6 SKILLの修正
 
 `discover`:
 
@@ -833,6 +864,7 @@ python scripts/evaluate_coverage.py \
 - closure percent不足、gap件数超過、inventory 0件が不可。
 - RETIRED／MERGEDを二重計上しない。
 - max pass到達時にloopせず理由を返す。
+- Sheets snapshot exportはmissing tab、header conflict、unknown trailing columns、row limit、secret redaction、安全なatomic output、CLI終了コード、Google write未使用をunit testする。
 
 ## Phase 4受け入れ条件
 
@@ -841,6 +873,7 @@ python scripts/evaluate_coverage.py \
 - risk-gatedは明示設定時だけ使用。
 - 残存gapがreportとSheetsから消えない。
 - threshold達成を100%と表現しない。
+- Google Sheets snapshot exportはread-onlyで、coverage evaluator互換JSONを安全に出力する。
 
 推奨commit境界:
 
