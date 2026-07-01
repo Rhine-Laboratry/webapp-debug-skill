@@ -597,7 +597,7 @@ class SheetsInitializer:
             try:
                 self.backend.apply_batch(plan.mutations)
             except SheetsBackendError as exc:
-                if exc.reason == "UNKNOWN_WRITE_RESULT":
+                if exc.reason == "UNKNOWN_WRITE_RESULT" or exc.may_have_applied:
                     result = self._handle_ambiguous_write(plan, operation_id, pending_result)
                     return result
                 raise init_error_from_backend(exc) from None

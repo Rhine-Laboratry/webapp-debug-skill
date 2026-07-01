@@ -21,12 +21,14 @@ class SheetsBackendError(RuntimeError):
         reason: str = "FAILED",
         *,
         exit_code: int = EXIT_EXTERNAL_FAILURE,
+        may_have_applied: bool = False,
     ) -> None:
         super().__init__(code)
         self.code = code
         self.path = path
         self.reason = reason
         self.exit_code = exit_code
+        self.may_have_applied = may_have_applied
 
 
 class SheetsBatchInvalidError(SheetsBackendError):

@@ -87,7 +87,12 @@ class FakeSheetsBackend:
             self.after_apply_hook(self)
         result = BatchResult(applied_mutations=len(mutations), spreadsheet_state=self._state())
         if self.fail_after_apply:
-            raise SheetsBackendError("SHEETS_BACKEND_IO_FAILED", "backend", "UNKNOWN_WRITE_RESULT")
+            raise SheetsBackendError(
+                "SHEETS_BACKEND_IO_FAILED",
+                "backend",
+                "UNKNOWN_WRITE_RESULT",
+                may_have_applied=True,
+            )
         return result
 
     def create_spreadsheet(self, title: str) -> SpreadsheetState:
