@@ -885,6 +885,10 @@ feat: add bounded discovery and risk-based coverage gates
 
 # Phase 5: CI、ドキュメント、v0.2 release readiness
 
+Phase 5A status: 完了。GitHub Actions CI、CHANGELOG、release checklist、CI/documentation static unit test、README/INSTALL/IMPLEMENTATION_PLAN更新を実装済み。
+
+Phase 5全体は未完了。Phase 5B以降としてoptional release automation、CakePHP discovery preparation、package versioning decisionを残す。
+
 ## 目的
 
 新しい決定的処理を継続的に検証し、READMEの実装状況を現実と一致させる。
@@ -897,6 +901,7 @@ README.md
 INSTALL.md
 DECISIONS.md
 CHANGELOG.md
+docs/RELEASE_CHECKLIST.md
 skills/webapp-debug/references/*.md
 ```
 
@@ -963,6 +968,19 @@ DECISIONSへ次を追記する。
 - coverageはstrict既定、risk-gatedは明示設定。
 
 CHANGELOGにv0.2のAdded／Changed／Security／Known limitationsを記載する。リリース日が未確定なら `Unreleased` とする。
+
+## 5.4 Phase 5A CI / release readiness
+
+Phase 5Aでは次を追加する。
+
+- `.github/workflows/ci.yml`
+- `CHANGELOG.md`
+- `docs/RELEASE_CHECKLIST.md`
+- CIとdocumentationの静的unit test
+
+CIはPython 3.11、3.12、3.13でunit test、integration skip確認、ruff、format check、validator、CLI help、pip checkを実行する。CIではGoogle credential env、実Spreadsheet ID、Drive API、DB、Playwright、CakePHP parserを使わない。
+
+Phase 5AではGitHub release automation、PyPI publish、Docker image build、tag作成、CakePHP discovery preparation、package versioning decisionを実装しない。
 
 ## Phase 5受け入れ条件
 

@@ -144,7 +144,30 @@ python scripts/evaluate_coverage.py \
   --current-pass 1
 ```
 
-## 9. Opt-in統合テスト
+## 9. CIと同じローカル検証
+
+release前、またはCI failureの再現時は、venvを有効化して次を実行します。`python` コマンドがない環境では、明示Pythonパスまたはvenv内のPythonを使ってください。
+
+```bash
+python -m pip check
+python -m pytest -q
+python -m pytest tests/integration -q
+python -m ruff check .
+python -m ruff format --check .
+python scripts/validate_skill.py --root .
+python scripts/validate_sheets_schema.py \
+  --schema skills/webapp-debug/assets/google-sheets-schema.json
+python scripts/validate_config.py \
+  --config skills/webapp-debug/assets/webapp-debug.config.example.yml \
+  --mode init
+python scripts/init_sheets.py --help
+python scripts/evaluate_coverage.py --help
+python scripts/export_sheets_snapshot.py --help
+```
+
+CIにはGoogle credential env、実Spreadsheet ID、DB接続情報、Playwright実行、CakePHP parserを設定しません。実Google統合テストはCIでは自動実行せず、env未設定でskipされることを確認します。
+
+## 10. Opt-in統合テスト
 
 既定ではskipされます。
 
@@ -176,7 +199,7 @@ python -m pytest tests/integration -q
 
 作成されたSpreadsheetは削除されません。共有設定も変更されません。
 
-## 10. Git除外
+## 11. Git除外
 
 ```bash
 cat skills/webapp-debug/assets/gitignore.fragment >> .gitignore
@@ -184,7 +207,7 @@ cat skills/webapp-debug/assets/gitignore.fragment >> .gitignore
 
 重複行は整理します。credential、`.webapp-debug/`、WAL、artifact、Playwright auth stateをGitに追加しないでください。
 
-## 11. トラブルシューティング
+## 12. トラブルシューティング
 
 - `GOOGLE_CREDENTIAL_ENV_MISSING`: configのcredential env名が空、または環境変数が未設定です。
 - `GOOGLE_CREDENTIAL_FILE_UNSAFE`: credential fileがsymlink、リポジトリ内、またはpermission不安全です。
@@ -196,6 +219,6 @@ cat skills/webapp-debug/assets/gitignore.fragment >> .gitignore
 - `SHEETS_SNAPSHOT_TAB_MISSING`: snapshot対象のcanonical tabがSpreadsheetにありません。初期化状態を確認してください。
 - `SHEETS_SNAPSHOT_HEADER_CONFLICT`: snapshot対象tabのheaderがcanonical schemaと完全一致していません。未知の末尾列は許可されますが、既定列の順序、大小文字、空列、重複、formula-like headerは拒否されます。
 
-## 12. 次の実行
+## 13. 次の実行
 
 初回導線は `init` です。`discover` は非破壊の静的解析から始まり、DBガード未成立の場合はブラウザ探索をblockします。
