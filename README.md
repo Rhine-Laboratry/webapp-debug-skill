@@ -1,18 +1,43 @@
-# webapp-debug skill v0.1
+# webapp-debug skill v0.2
 
-CakePHP／JavaScriptを含むWebアプリケーションを対象に、コードベースと実ブラウザから機能を棚卸しし、日本語のユーザーストーリー／Scenarioへ変換し、Playwrightテストを生成・実行して、Google Sheetsへ進捗・結果・不具合・証跡を記録するAgent Skillの初稿です。
+Webアプリケーションのコードベースとブラウザ動作から機能を棚卸しし、日本語のFeature／User Story／Scenario、Playwrightテスト、Google Sheets上の進捗・不具合記録を生成するAgent Skillです。
+
+現在の実装は、v0.2 Runtime Hardeningとして安全な初期化と検証基盤を追加した状態です。CakePHP AST解析器、Playwright生成器、coverage evaluatorは後続実装です。
+
+## 現在の状態
+
+実装済み:
+
+- Codex／Claude wrapperのfrontmatter互換と `scripts/validate_skill.py`
+- `scripts/validate_config.py` によるconfig validator
+- `scripts/validate_sheets_schema.py` によるSheets schema validator
+- `scripts/redact_artifact.py` によるtext／JSON／YAML／HAR redaction
+- append-only WAL
+- Google SDKに依存しないSheets backend abstraction
+- 単一ライター前提のcooperative lock
+- `scripts/init_sheets.py` による安全なGoogle Sheets初期化
+- Google Sheets API adapter
+- 実Google Sheets API統合テスト。ただし明示opt-in時だけ実行
+
+未実装:
+
+- CakePHP AST discovery engine
+- Playwright Scenario生成器／runner orchestration
+- Phase 4 coverage evaluator
+- Drive APIによる共有、削除、権限設定
+- OAuthユーザーフロー、domain-wide delegation
+- 強い分散ロック
+- screenshot／video／trace zip内画像の自動PII redaction
 
 ## 配置
 
-このパッケージは、正準Skillと各エージェント用ラッパーをrepo内に含みます。次の2つのラッパーが、共通の正準Skillを読み込みます。
+このパッケージは正準Skillと各エージェント用ラッパーをrepo内に含みます。
 
 - Codex: `.agents/skills/webapp-debug/SKILL.md`
 - Claude Code: `.claude/skills/webapp-debug/SKILL.md`
 - 共通の正準Skill: `skills/webapp-debug/SKILL.md`
 
-ラッパーから共通Skillへの相対パスを維持するため、ディレクトリ構成は変更しないでください。
-
-dot-directoryもGit追跡対象です。次のコマンドで配置を確認できます。
+dot-directoryもGit追跡対象です。
 
 ```bash
 git ls-files .agents .claude
@@ -44,40 +69,101 @@ Claude Code:
 
 モードを省略した場合はヘルプだけを返し、副作用のある処理を開始しません。
 
-初回導線は `init` です。`report` は既存のSheetsやローカル証跡メタデータを読むモードであり、初回セットアップや初期同期には使用しません。
+## 初回推奨導線
 
-## 初期導入
+1. Python 3.11以上のvenvを作成し、依存関係を入れる。
+2. `python scripts/validate_skill.py --root .` を実行する。
+3. `.webapp-debug/config.yml` を作成する。
+4. `python scripts/validate_config.py --config .webapp-debug/config.yml --mode init` を実行する。
+5. `python scripts/validate_sheets_schema.py --schema skills/webapp-debug/assets/google-sheets-schema.json` を実行する。
+6. Google Spreadsheetを手動で作成する。
+7. サービスアカウントへそのSpreadsheetの編集権限を付与する。
+8. `.webapp-debug/config.yml` にSpreadsheet IDとcredential env名を設定する。
+9. `python scripts/init_sheets.py --config .webapp-debug/config.yml --dry-run` を実行する。
+10. `python scripts/init_sheets.py --config .webapp-debug/config.yml` を実行する。
+11. 必要な場合だけopt-in統合テストを実行する。
 
-1. `$webapp-debug init` または `/webapp-debug init` を最初に実行します。
-2. `skills/webapp-debug/assets/webapp-debug.config.example.yml` を `.webapp-debug/config.yml` へコピーします。
-3. `spreadsheet_id`、ローカルアプリの起動方法、接続先DBの安全条件を設定します。
-4. Googleサービスアカウントの認証情報はリポジトリへ保存せず、`GOOGLE_APPLICATION_CREDENTIALS` 等の環境変数から渡します。
-5. `.gitignore` に `skills/webapp-debug/assets/gitignore.fragment` の内容を反映します。
-6. `init` で設定、Google Sheetsのタブ、Playwright環境を検査します。`report` は初期化後の既存状態確認に限定します。
+`--create` は補助機能です。標準導線は、手動でテスト専用Spreadsheetを作成し、サービスアカウントへ編集権限を付与してから既存Spreadsheetを初期化する方法です。サービスアカウントが作成したSpreadsheetはユーザーのDriveへ自動共有されません。このSkillはDrive APIによる共有を行いません。
 
-## 正準データの範囲
+## 主要CLI
 
-Google Sheetsは、機能インベントリ、Scenario、テスト実行履歴、不具合、証跡メタデータ、進捗ステータスの唯一の正準データです。ローカルの `.webapp-debug/config.yml` は、マシン固有の実行ポリシーと秘密情報を含まない接続設定を保持します。実行途中の同期障害時だけ、`.webapp-debug/state/` にwrite-ahead logを保存します。
+```bash
+python scripts/validate_skill.py --root .
+python scripts/validate_config.py \
+  --config skills/webapp-debug/assets/webapp-debug.config.example.yml \
+  --mode init
+python scripts/validate_sheets_schema.py \
+  --schema skills/webapp-debug/assets/google-sheets-schema.json
+python scripts/init_sheets.py --help
+python scripts/redact_artifact.py --help
+```
 
-## v0.1の境界
+Google Sheets初期化:
 
-- 正式アダプター: CakePHP 3.x〜5.xを想定
-- CakePHP 2.x: generic PHP解析＋ブラウザ探索
-- E2E対象: 画面、画面由来Ajax、アップロード／ダウンロード、メール、CSV／PDF、JavaScript画面動作
-- Inventoryのみ: UIを持たないAPI、Command／cron、キュー、外部連携
-- 対象外: ピクセル単位のVisual Regression、性能試験、能動的脆弱性診断
-- 不具合修正: 行わず、原因候補と根拠、確信度まで記録
+```bash
+python scripts/init_sheets.py \
+  --config .webapp-debug/config.yml \
+  --schema skills/webapp-debug/assets/google-sheets-schema.json \
+  --dry-run
 
-## 主要ファイル
+python scripts/init_sheets.py \
+  --config .webapp-debug/config.yml \
+  --schema skills/webapp-debug/assets/google-sheets-schema.json
+```
 
-- `skills/webapp-debug/SKILL.md`: 実行手順とガード
-- `skills/webapp-debug/references/`: 詳細仕様
-- `skills/webapp-debug/assets/webapp-debug.config.example.yml`: 設定テンプレート
-- `skills/webapp-debug/assets/config.schema.json`: 設定のJSON Schema
-- `skills/webapp-debug/assets/google-sheets-schema.json`: Google Sheetsタブ／列定義
-- `skills/webapp-debug/assets/playwright.config.example.ts`: Playwright既定値
-- `DECISIONS.md`: 合意済み要件
+Metadata storageがない既存Spreadsheetをbootstrapする場合は、明示確認が必要です。
 
-## 実装上の注意
+```bash
+python scripts/init_sheets.py \
+  --config .webapp-debug/config.yml \
+  --schema skills/webapp-debug/assets/google-sheets-schema.json \
+  --bootstrap-lock-storage \
+  --confirm-spreadsheet-id <spreadsheet-id>
+```
 
-この初稿はAgent Skillのワークフロー、データ契約、安全条件を定義します。Google Sheets同期CLIやCakePHP AST解析器を固定実装として同梱してはいません。各対象リポジトリの構成差を調査した上で、Skillが `tests/e2e/` と `.webapp-debug/generated-tools/` に必要な補助コードを生成する設計です。
+## Google認証
+
+サービスアカウントJSONはリポジトリ外へ置き、`.webapp-debug/config.yml` の `sheets.service_account_credentials_env` に環境変数名だけを設定します。credential path、private key、client email、access tokenをissue、log、Sheets、WALへ貼らないでください。
+
+例:
+
+```bash
+export WEBAPP_DEBUG_GOOGLE_SERVICE_ACCOUNT=/secure/path/service-account.json
+```
+
+```yaml
+sheets:
+  service_account_credentials_env: WEBAPP_DEBUG_GOOGLE_SERVICE_ACCOUNT
+```
+
+## Opt-in統合テスト
+
+既定の `python -m pytest -q` では、実Google統合テストはskipされます。実行する場合は、テスト専用Spreadsheetだけを使ってください。本番または共有業務Spreadsheetを対象にしないでください。
+
+```bash
+WEBAPP_DEBUG_RUN_GOOGLE_INTEGRATION=1 \
+WEBAPP_DEBUG_GOOGLE_CREDENTIALS_FILE=/path/outside/repo/service-account.json \
+WEBAPP_DEBUG_GOOGLE_SPREADSHEET_ID=... \
+WEBAPP_DEBUG_GOOGLE_CONFIRM_SPREADSHEET_ID=... \
+python -m pytest tests/integration -q
+```
+
+create flowはさらに明示許可が必要です。作成したSpreadsheetは削除も共有もされません。
+
+```bash
+WEBAPP_DEBUG_RUN_GOOGLE_INTEGRATION=1 \
+WEBAPP_DEBUG_GOOGLE_CREDENTIALS_FILE=/path/outside/repo/service-account.json \
+WEBAPP_DEBUG_GOOGLE_SPREADSHEET_ID=... \
+WEBAPP_DEBUG_GOOGLE_CONFIRM_SPREADSHEET_ID=... \
+WEBAPP_DEBUG_GOOGLE_ALLOW_CREATE=1 \
+WEBAPP_DEBUG_GOOGLE_CREATE_TITLE="webapp-debug integration test" \
+python -m pytest tests/integration -q
+```
+
+## 安全上の注意
+
+- service account keyをリポジトリへ置かない。
+- `.webapp-debug/`、WAL、artifact、auth state、credentialをGit追跡しない。
+- `discover` の静的解析以外でDBやブラウザ実行を伴う場合、DBガードを成立させる。
+- v0.2のlockは単一ライター前提のcooperative lockであり、完全な分散排他ではない。
+- redaction不能なbinary artifactを安全化済みと扱わない。

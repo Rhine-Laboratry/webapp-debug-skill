@@ -663,6 +663,26 @@ fail-closed対象:
 - redaction不能artifactを安全済みと誤表示しない。
 - 実credentialなしで全unit testが成功する。
 
+## Phase 3実装状況
+
+- Phase 1: 完了。
+- Phase 2: 完了。
+- Phase 3A redaction／WAL: 完了。
+- Phase 3B Sheets backend abstraction／cooperative lock: 完了。
+- Phase 3C1 initializer／recovery: 完了。
+- Phase 3C2A credential loader／Google Sheets adapter: 完了。
+- Phase 3C2B1 `init_sheets.py`／bootstrap／config writer: 完了。
+- Phase 3C2B2 opt-in実Google統合テスト／README／INSTALL／SKILL更新: 完了。
+
+Phase 3全体は、実Google統合テストが明示envなしではskipされ、fake／unit testとvalidatorが成功する状態で完了扱いとする。実Google API統合はopt-inであり、CIや通常pytestでは実credential、実Spreadsheet ID、実ネットワークを要求しない。
+
+未着手として残すもの:
+
+- Phase 4 coverage target／risk threshold evaluator。
+- CakePHP discovery engine。
+- Playwright Scenario生成器／runner orchestration。
+- Google Drive API、Spreadsheet共有、削除、OAuthユーザーフロー。
+
 推奨commit境界:
 
 ```text
