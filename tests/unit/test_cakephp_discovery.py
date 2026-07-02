@@ -135,6 +135,7 @@ def test_discovery_payload_inventory_and_coverage_compatibility() -> None:
     assert any(row["risk"] == "HIGH" for row in rows)
     assert all(row["status"] in {"DISCOVERED", "DISCOVERY_GAP"} for row in rows)
     assert all(row["status"] not in {"MAPPED", "RETIRED"} for row in rows)
+    assert all(row["source_key"] for row in rows)
     assert all(not row["source_path"].startswith("/") for row in rows)
     assert all(row["inventory_id"].startswith("INV-TEMP-") for row in rows)
 

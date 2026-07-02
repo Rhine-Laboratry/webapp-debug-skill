@@ -43,6 +43,7 @@ def test_inventory_id_is_deterministic_and_rows_are_coverage_compatible() -> Non
     assert candidate.inventory_id == same.inventory_id
     assert row["status"] == "DISCOVERED"
     assert row["discovery_status"] == "DISCOVERED"
+    assert row["source_key"] == "controller|Users|index"
     assert row["source_code_reference"] == "src/Controller/UsersController.php:12"
     report = evaluate_inventory([row], CoveragePolicy())
     assert report.metrics.inventory_total == 1

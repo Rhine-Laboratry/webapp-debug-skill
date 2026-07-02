@@ -77,6 +77,9 @@ jobs:
       - name: Check CakePHP discovery help
         run: python scripts/discover_cakephp_inventory.py --help
 
+      - name: Check Inventory sync plan help
+        run: python scripts/plan_inventory_sync.py --help
+
       - name: Check release readiness
         run: python scripts/release_check.py --version 0.2.0
 
