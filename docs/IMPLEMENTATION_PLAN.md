@@ -1033,7 +1033,9 @@ Phase 6C1 status: 完了。Inventory sync plan apply engineのfake/unit基盤、
 
 Phase 6C2 status: 完了。Inventory sync planを実Google Sheets adapterへ接続し、`scripts/apply_inventory_sync.py`、Spreadsheet ID完全一致確認、cooperative lock、WAL pending/read-back/ack、dry-run、fake/unit test、opt-in real integration境界を対象とする。
 
-Phase 7以降は未着手。Playwright Scenario generation、browser exploration、JavaScript parser、CakePHP高精度AST adapter、automatic root cause analysisは後続に残す。
+Phase 7A status: 完了。Feature / Story / Scenarioのtyped domain contract、Scenarios schemaのInventory逆参照・構造化actions/assertions/data requirements/source refs列、enum/ID/manual field/secret/formula validation、unit testを対象とする。Scenario sync plan、Sheets apply、Playwright生成はPhase 7B以降に残す。
+
+Phase 7B以降は未着手。Playwright Scenario generation、browser exploration、JavaScript parser、CakePHP高精度AST adapter、automatic root cause analysisは後続に残す。
 
 ## 目的
 

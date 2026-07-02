@@ -262,6 +262,12 @@
           false
         ],
         [
+          "inventory_ids",
+          "string[]",
+          true,
+          false
+        ],
+        [
           "preconditions",
           "multiline",
           true,
@@ -274,7 +280,25 @@
           false
         ],
         [
+          "structured_actions",
+          "multiline",
+          true,
+          false
+        ],
+        [
           "expected_results",
+          "multiline",
+          true,
+          false
+        ],
+        [
+          "structured_assertions",
+          "multiline",
+          true,
+          false
+        ],
+        [
+          "data_requirements",
           "multiline",
           true,
           false

@@ -154,6 +154,20 @@ def test_append_only_identifier_missing_is_rejected(tmp_path: Path) -> None:
     assert "APPEND_ONLY_IDENTIFIER_MISSING" in process.stdout
 
 
+def test_scenario_contract_columns_missing_is_rejected(tmp_path: Path) -> None:
+    schema = load_schema()
+    scenarios = find_tab(schema, "Scenarios")
+    scenarios["columns"] = [
+        column for column in scenarios["columns"] if column[0] != "structured_actions"
+    ]
+    path = write_schema(tmp_path, schema)
+
+    process = run_sheets(path)
+
+    assert process.returncode == 2
+    assert "SCENARIO_CONTRACT_COLUMNS_MISSING" in process.stdout
+
+
 def test_human_editable_column_mismatch_is_rejected(tmp_path: Path) -> None:
     schema_path = write_schema(tmp_path, load_schema())
     config = load_config()

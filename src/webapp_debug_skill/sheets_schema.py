@@ -47,6 +47,17 @@ APPEND_ONLY_IDENTIFIERS = {
     "Evidence": {"evidence_id", "run_id"},
 }
 METADATA_REQUIRED_COLUMNS = {"key", "value", "updated_at"}
+SCENARIO_REQUIRED_COLUMNS = {
+    "scenario_id",
+    "scenario_version",
+    "feature_id",
+    "story_id",
+    "inventory_ids",
+    "structured_actions",
+    "structured_assertions",
+    "data_requirements",
+    "expectation_source_refs",
+}
 
 
 def validate_json_schema(instance: Mapping[str, Any], schema: Mapping[str, Any]) -> list[Issue]:
@@ -137,6 +148,8 @@ def semantic_schema_issues(schema: Mapping[str, Any]) -> list[Issue]:
 
         if tab_name == "Metadata" and not METADATA_REQUIRED_COLUMNS.issubset(set(names)):
             issues.append(Issue(f"{tab_path}.columns", "METADATA_LOCK_COLUMNS_MISSING"))
+        if tab_name == "Scenarios" and not SCENARIO_REQUIRED_COLUMNS.issubset(set(names)):
+            issues.append(Issue(f"{tab_path}.columns", "SCENARIO_CONTRACT_COLUMNS_MISSING"))
 
     return issues
 

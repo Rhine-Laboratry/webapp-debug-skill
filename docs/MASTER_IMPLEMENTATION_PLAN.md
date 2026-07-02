@@ -19,6 +19,7 @@
 - CakePHP static Inventory discovery
 - read-only discovery JSONとsnapshot JSONからのInventory sync plan生成
 - Inventory sync planのGoogle Sheets適用CLI
+- typed Feature / Story / Scenario domain contract
 
 未実装:
 
