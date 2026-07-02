@@ -288,7 +288,6 @@ def check_changelog(root: Path, version: str) -> list[Issue]:
     added = section_between(text, "### Added", "### Changed")
     for phrase in (
         "JavaScript parsing",
-        "Advanced locator/page object support",
         "Playwright runner orchestration",
     ):
         if phrase in added:

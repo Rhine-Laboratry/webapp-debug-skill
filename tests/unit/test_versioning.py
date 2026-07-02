@@ -59,7 +59,6 @@ def test_changelog_does_not_mark_future_engines_as_added() -> None:
     assert "CakePHP static Inventory discovery" in added
     for future_feature in (
         "JavaScript parsing",
-        "Advanced locator/page object support",
         "Playwright runner orchestration",
     ):
         assert future_feature not in added

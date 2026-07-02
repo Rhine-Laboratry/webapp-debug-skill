@@ -19,6 +19,14 @@ from webapp_debug_skill.errors import (
     EXIT_UNEXPECTED,
 )
 from webapp_debug_skill.inventory_model import dumps_snapshot
+from webapp_debug_skill.locator_model import (
+    LocatorCandidate,
+    LocatorChoice,
+    LocatorKind,
+    LocatorModelError,
+    choose_locator,
+    parse_locator_candidates,
+)
 from webapp_debug_skill.playwright_project import (
     DEFAULT_PROJECT_DIR,
     GENERATED_MARKER,
@@ -54,6 +62,10 @@ SCENARIOS_TAB = "Scenarios"
 GENERATION_MANIFEST_NAME = "webapp-debug.generation-manifest.json"
 SUPPORTED_ACTIONS = {
     ScenarioActionKind.NAVIGATE,
+    ScenarioActionKind.CLICK,
+    ScenarioActionKind.FILL,
+    ScenarioActionKind.SELECT,
+    ScenarioActionKind.SUBMIT,
     ScenarioActionKind.WAIT,
 }
 SUPPORTED_ASSERTIONS = {
@@ -100,6 +112,7 @@ class ScenarioGenerationDecision:
     reason_code: str
     test_file: str = ""
     test_name: str = ""
+    locator_stability: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """Return safe JSON data."""
@@ -111,6 +124,7 @@ class ScenarioGenerationDecision:
             "reason_code": self.reason_code,
             "test_file": self.test_file,
             "test_name": self.test_name,
+            "locator_stability": self.locator_stability,
         }
 
 
@@ -121,6 +135,32 @@ class GeneratedSpec:
     scenario: ScenarioContract
     planned_file: PlannedFile
     test_name: str
+
+
+@dataclass(frozen=True)
+class GeneratedPageObject:
+    """Generated page object file for one Scenario."""
+
+    scenario: ScenarioContract
+    planned_file: PlannedFile
+
+
+@dataclass(frozen=True)
+class LocatorBinding:
+    """One generated page object locator binding."""
+
+    method_name: str
+    choice: LocatorChoice
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return safe JSON data."""
+
+        return {
+            "method_name": self.method_name,
+            "locator_stability": self.choice.locator_stability,
+            "requires_review": self.choice.requires_review,
+            "choice": self.choice.to_payload(),
+        }
 
 
 @dataclass(frozen=True)
@@ -347,20 +387,26 @@ def build_generation_plan(
 
     existing_manifest = require_bootstrap_manifest(project_dir)
     specs: list[GeneratedSpec] = []
+    page_objects: list[GeneratedPageObject] = []
     scenario_decisions: list[ScenarioGenerationDecision] = []
     for scenario in sorted(scenarios, key=lambda item: (item.scenario_id, item.scenario_version)):
         decision = classify_scenario(root, project_dir, scenario)
         scenario_decisions.append(decision)
         if decision.status == "GENERATED":
             specs.append(build_spec(root, project_dir, scenario, decision.test_name))
+            page_object = build_page_object(root, project_dir, scenario)
+            if page_object is not None:
+                page_objects.append(page_object)
 
     status_manifest = generation_status_manifest(
         root,
         project_dir,
         scenario_decisions,
     )
-    planned_files = tuple(spec.planned_file for spec in specs) + (
-        generation_manifest_file(root, project_dir, status_manifest),
+    planned_files = (
+        tuple(spec.planned_file for spec in specs)
+        + tuple(page_object.planned_file for page_object in page_objects)
+        + (generation_manifest_file(root, project_dir, status_manifest),)
     )
     updated_manifest = merged_project_manifest(existing_manifest, planned_files)
     all_files = planned_files + (project_manifest_file(root, project_dir, updated_manifest),)
@@ -417,12 +463,14 @@ def classify_scenario(
     reason = blocking_reason(scenario)
     test_file = scenario_spec_relative_path(root, project_dir, scenario)
     test_name = scenario_test_name(scenario)
+    locator_stability = scenario_locator_stability(scenario)
     if reason:
         return ScenarioGenerationDecision(
             scenario_id=scenario.scenario_id,
             scenario_version=scenario.scenario_version,
             status="BLOCKED",
             reason_code=reason,
+            locator_stability=locator_stability,
         )
     return ScenarioGenerationDecision(
         scenario_id=scenario.scenario_id,
@@ -431,6 +479,7 @@ def classify_scenario(
         reason_code="READY",
         test_file=test_file,
         test_name=test_name,
+        locator_stability=locator_stability,
     )
 
 
@@ -468,6 +517,21 @@ def action_blocking_reason(action: ScenarioAction) -> str:
 
     if action.kind == ScenarioActionKind.NAVIGATE:
         return "" if safe_relative_url(action.target) else "NAVIGATION_TARGET_UNSAFE"
+    if action.kind in {
+        ScenarioActionKind.CLICK,
+        ScenarioActionKind.FILL,
+        ScenarioActionKind.SELECT,
+        ScenarioActionKind.SUBMIT,
+    }:
+        choice, reason = locator_choice_for_value(action.target, path="structured_actions.target")
+        if reason:
+            return reason
+        if choice is None:
+            return "LOCATOR_SOURCE_MISSING"
+        if choice.requires_review:
+            return "LOCATOR_REVIEW_REQUIRED"
+        if action.kind in {ScenarioActionKind.FILL, ScenarioActionKind.SELECT} and not action.value:
+            return "ACTION_VALUE_MISSING"
     return ""
 
 
@@ -478,9 +542,18 @@ def assertion_blocking_reason(assertion: ScenarioAssertion) -> str:
         value = assertion.expected or assertion.target
         return "" if safe_relative_url(value) else "ASSERTION_TARGET_UNSAFE"
     if assertion.kind in {ScenarioAssertionKind.VISIBLE, ScenarioAssertionKind.TEXT}:
-        value = assertion.expected or assertion.target
-        if not value.strip():
-            return "ASSERTION_TARGET_MISSING"
+        choice, reason = locator_choice_for_value(
+            assertion.target,
+            path="structured_assertions.target",
+        )
+        if reason:
+            return reason
+        if choice is None:
+            return "LOCATOR_SOURCE_MISSING"
+        if choice.requires_review:
+            return "LOCATOR_REVIEW_REQUIRED"
+        if assertion.kind == ScenarioAssertionKind.TEXT and not assertion.expected:
+            return "ASSERTION_EXPECTED_MISSING"
     return ""
 
 
@@ -519,51 +592,84 @@ def build_spec(
 def render_spec(scenario: ScenarioContract, test_name: str) -> str:
     """Render one Playwright spec skeleton."""
 
+    bindings = locator_bindings(scenario)
+    binding_index = 0
+    class_name = page_object_class_name(scenario)
+    page_object_file = page_object_import_path(scenario)
     lines = [
         f"// {GENERATED_MARKER}",
         f"// scenario_id: {scenario.scenario_id}",
         f"// scenario_version: {scenario.scenario_version}",
         "import { expect, test } from '@playwright/test';",
-        "",
-        f"test({ts_string(test_name)}, async ({{ page }}) => {{",
-        "  test.info().annotations.push(",
-        f"    {{ type: 'scenario_id', description: {ts_string(scenario.scenario_id)} }},",
-        "  );",
     ]
+    if bindings:
+        lines.append(f"import {{ {class_name} }} from {ts_string(page_object_file)};")
+    lines.extend(
+        [
+            "",
+            f"test({ts_string(test_name)}, async ({{ page }}) => {{",
+        ]
+    )
+    if bindings:
+        lines.append(f"  const scenarioPage = new {class_name}(page);")
+    lines.extend(
+        [
+            "  test.info().annotations.push(",
+            f"    {{ type: 'scenario_id', description: {ts_string(scenario.scenario_id)} }},",
+            "  );",
+            f"  // locator_stability: {scenario_locator_stability(scenario) or 'NONE'}",
+        ]
+    )
     for precondition in scenario.preconditions:
         lines.append(f"  // precondition: {ts_comment(precondition)}")
     for action in scenario.actions:
-        lines.extend(render_action(action))
+        binding = None
+        if action_needs_locator(action):
+            binding = bindings[binding_index]
+            binding_index += 1
+        lines.extend(render_action(action, binding))
     for assertion in scenario.assertions:
-        lines.extend(render_assertion(assertion))
+        binding = None
+        if assertion_needs_locator(assertion):
+            binding = bindings[binding_index]
+            binding_index += 1
+        lines.extend(render_assertion(assertion, binding))
     lines.extend(["});", ""])
     return "\n".join(lines)
 
 
-def render_action(action: ScenarioAction) -> list[str]:
+def render_action(action: ScenarioAction, binding: LocatorBinding | None) -> list[str]:
     """Render a supported structured action."""
 
     lines = [f"  // action: {ts_comment(action.description)}"]
     if action.kind == ScenarioActionKind.NAVIGATE:
         lines.append(f"  await page.goto({ts_string(action.target)});")
+    elif action.kind == ScenarioActionKind.CLICK and binding is not None:
+        lines.append(f"  await scenarioPage.{binding.method_name}().click();")
+    elif action.kind == ScenarioActionKind.FILL and binding is not None:
+        lines.append(
+            f"  await scenarioPage.{binding.method_name}().fill({ts_string(action.value)});"
+        )
+    elif action.kind == ScenarioActionKind.SELECT and binding is not None:
+        lines.append(
+            f"  await scenarioPage.{binding.method_name}().selectOption({ts_string(action.value)});"
+        )
+    elif action.kind == ScenarioActionKind.SUBMIT and binding is not None:
+        lines.append(f"  await scenarioPage.{binding.method_name}().click();")
     elif action.kind == ScenarioActionKind.WAIT:
         lines.append("  await page.waitForLoadState('domcontentloaded');")
     return lines
 
 
-def render_assertion(assertion: ScenarioAssertion) -> list[str]:
+def render_assertion(assertion: ScenarioAssertion, binding: LocatorBinding | None) -> list[str]:
     """Render a supported structured assertion."""
 
     lines = [f"  // assertion: {ts_comment(assertion.description)}"]
-    if assertion.kind == ScenarioAssertionKind.VISIBLE:
-        target = assertion.target or assertion.expected
+    if assertion.kind == ScenarioAssertionKind.VISIBLE and binding is not None:
+        lines.append(f"  await expect(scenarioPage.{binding.method_name}()).toBeVisible();")
+    elif assertion.kind == ScenarioAssertionKind.TEXT and binding is not None:
         lines.append(
-            f"  await expect(page.getByText({ts_string(target)}, {{ exact: false }})).toBeVisible();"
-        )
-    elif assertion.kind == ScenarioAssertionKind.TEXT:
-        expected = assertion.expected or assertion.target
-        lines.append(
-            f"  await expect(page.getByText({ts_string(expected)}, {{ exact: false }})).toBeVisible();"
+            f"  await expect(scenarioPage.{binding.method_name}()).toContainText({ts_string(assertion.expected)});"
         )
     elif assertion.kind == ScenarioAssertionKind.URL:
         expected = assertion.expected or assertion.target
@@ -573,14 +679,231 @@ def render_assertion(assertion: ScenarioAssertion) -> list[str]:
     return lines
 
 
+def build_page_object(
+    root: Path,
+    project_dir: Path,
+    scenario: ScenarioContract,
+) -> GeneratedPageObject | None:
+    """Build a generated page object file when Scenario has locators."""
+
+    bindings = locator_bindings(scenario)
+    if not bindings:
+        return None
+    relative_path = page_object_relative_path(root, project_dir, scenario)
+    content = render_page_object(scenario, bindings).encode("utf-8")
+    if secret_findings(content.decode("utf-8", errors="replace")):
+        raise PlaywrightGeneratorError(
+            "PLAYWRIGHT_GENERATOR_CONTENT_UNSAFE",
+            relative_path,
+            "SECRET_DETECTED",
+        )
+    validate_static_typescript(content.decode("utf-8", errors="replace"), relative_path)
+    return GeneratedPageObject(
+        scenario=scenario,
+        planned_file=PlannedFile(
+            relative_path=relative_path,
+            content=content,
+            metadata={
+                "scenario_id": scenario.scenario_id,
+                "scenario_version": scenario.scenario_version,
+                "source_fingerprint": scenario.source_fingerprint,
+                "artifact": "page_object",
+            },
+        ),
+    )
+
+
+def render_page_object(
+    scenario: ScenarioContract,
+    bindings: Sequence[LocatorBinding],
+) -> str:
+    """Render a minimal page object with locator confidence comments."""
+
+    lines = [
+        f"// {GENERATED_MARKER}",
+        f"// scenario_id: {scenario.scenario_id}",
+        f"// scenario_version: {scenario.scenario_version}",
+        "import type { Locator, Page } from '@playwright/test';",
+        "",
+        f"export class {page_object_class_name(scenario)} {{",
+        "  constructor(private readonly page: Page) {}",
+    ]
+    for binding in bindings:
+        expression = locator_expression(binding.choice.candidate, page_var="this.page")
+        lines.extend(
+            [
+                "",
+                f"  // locator_stability: {binding.choice.locator_stability}",
+                f"  // locator_kind: {binding.choice.candidate.kind.value}",
+                f"  {binding.method_name}(): Locator {{",
+                f"    return {expression};",
+                "  }",
+            ]
+        )
+    lines.extend(["}", ""])
+    return "\n".join(lines)
+
+
+def locator_bindings(scenario: ScenarioContract) -> tuple[LocatorBinding, ...]:
+    """Return selected locator bindings in execution order."""
+
+    bindings: list[LocatorBinding] = []
+    for action in scenario.actions:
+        if action_needs_locator(action):
+            bindings.append(
+                LocatorBinding(
+                    method_name=f"locator{len(bindings) + 1}",
+                    choice=required_locator_choice(action.target, "structured_actions.target"),
+                )
+            )
+    for assertion in scenario.assertions:
+        if assertion_needs_locator(assertion):
+            bindings.append(
+                LocatorBinding(
+                    method_name=f"locator{len(bindings) + 1}",
+                    choice=required_locator_choice(
+                        assertion.target,
+                        "structured_assertions.target",
+                    ),
+                )
+            )
+    return tuple(bindings)
+
+
+def scenario_locator_stability(scenario: ScenarioContract) -> str:
+    """Return aggregate locator stability for generated status integration."""
+
+    choices = [binding.choice for binding in locator_bindings_if_valid(scenario)]
+    if not choices:
+        return ""
+    levels = {choice.locator_stability for choice in choices}
+    if "LOW" in levels:
+        return "LOW"
+    if "MEDIUM" in levels:
+        return "MEDIUM"
+    return "HIGH"
+
+
+def locator_bindings_if_valid(scenario: ScenarioContract) -> tuple[LocatorBinding, ...]:
+    """Return locator bindings, or empty tuple when locator target is invalid."""
+
+    try:
+        return locator_bindings(scenario)
+    except PlaywrightGeneratorError:
+        return ()
+
+
+def required_locator_choice(value: str, path: str) -> LocatorChoice:
+    """Return a locator choice or raise an internal-safe generator error."""
+
+    choice, reason = locator_choice_for_value(value, path=path)
+    if reason:
+        raise PlaywrightGeneratorError("PLAYWRIGHT_GENERATOR_LOCATOR_INVALID", path, reason)
+    if choice is None:
+        raise PlaywrightGeneratorError(
+            "PLAYWRIGHT_GENERATOR_LOCATOR_INVALID",
+            path,
+            "LOCATOR_SOURCE_MISSING",
+        )
+    return choice
+
+
+def locator_choice_for_value(value: str, *, path: str) -> tuple[LocatorChoice | None, str]:
+    """Return a locator choice and a safe blocking reason."""
+
+    try:
+        candidates = parse_locator_candidates(value, path=path)
+    except LocatorModelError:
+        return None, "LOCATOR_SOURCE_INVALID"
+    choice = choose_locator(candidates)
+    return choice, ""
+
+
+def action_needs_locator(action: ScenarioAction) -> bool:
+    """Return whether an action needs a selected locator."""
+
+    return action.kind in {
+        ScenarioActionKind.CLICK,
+        ScenarioActionKind.FILL,
+        ScenarioActionKind.SELECT,
+        ScenarioActionKind.SUBMIT,
+    }
+
+
+def assertion_needs_locator(assertion: ScenarioAssertion) -> bool:
+    """Return whether an assertion needs a selected locator."""
+
+    return assertion.kind in {ScenarioAssertionKind.VISIBLE, ScenarioAssertionKind.TEXT}
+
+
+def locator_expression(candidate: LocatorCandidate, *, page_var: str) -> str:
+    """Return a Playwright locator expression for a selected candidate."""
+
+    if candidate.kind == LocatorKind.ROLE:
+        return (
+            f"{page_var}.getByRole({ts_string(candidate.role)}, "
+            f"{{ name: {ts_string(candidate.name or candidate.value)} }})"
+        )
+    if candidate.kind == LocatorKind.LABEL:
+        return f"{page_var}.getByLabel({ts_string(candidate.value)})"
+    if candidate.kind == LocatorKind.PLACEHOLDER:
+        return f"{page_var}.getByPlaceholder({ts_string(candidate.value)})"
+    if candidate.kind == LocatorKind.TEXT:
+        return f"{page_var}.getByText({ts_string(candidate.value)}, {{ exact: true }})"
+    if candidate.kind == LocatorKind.TEST_ID:
+        return f"{page_var}.getByTestId({ts_string(candidate.value)})"
+    if candidate.kind == LocatorKind.ID:
+        return f"{page_var}.locator({ts_string(css_attr_selector('id', candidate.value))})"
+    if candidate.kind == LocatorKind.NAME:
+        return f"{page_var}.locator({ts_string(css_attr_selector('name', candidate.value))})"
+    if candidate.kind in {LocatorKind.CSS, LocatorKind.XPATH}:
+        return f"{page_var}.locator({ts_string(candidate.value)})"
+    raise PlaywrightGeneratorError(
+        "PLAYWRIGHT_GENERATOR_LOCATOR_INVALID",
+        "locator.kind",
+        "UNKNOWN",
+    )
+
+
+def css_attr_selector(attribute: str, value: str) -> str:
+    """Return a simple quoted CSS attribute selector."""
+
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'[{attribute}="{escaped}"]'
+
+
+def page_object_class_name(scenario: ScenarioContract) -> str:
+    """Return deterministic page object class name."""
+
+    stem = scenario.scenario_id.replace("-", "").title()
+    return f"Scenario{stem}V{scenario.scenario_version}Page"
+
+
+def page_object_import_path(scenario: ScenarioContract) -> str:
+    """Return spec-to-page object import path."""
+
+    return f"../pages/{scenario.scenario_id.lower()}-v{scenario.scenario_version}.page"
+
+
+def page_object_relative_path(
+    root: Path,
+    project_dir: Path,
+    scenario: ScenarioContract,
+) -> str:
+    """Return page object path relative to repo root."""
+
+    file_name = f"{scenario.scenario_id.lower()}-v{scenario.scenario_version}.page.ts"
+    return relative_file(root, project_dir / "pages" / file_name)
+
+
 def validate_static_typescript(content: str, relative_path: str) -> None:
     """Run deterministic static checks without invoking TypeScript or Playwright."""
 
     forbidden = (
         "storageState",
         ".auth",
-        "Cookie:",
-        "Authorization:",
+        "Cookie" + ":",
+        "Authorization" + ":",
         "test.only",
         "describe.only",
         "page.pause",

@@ -1043,7 +1043,9 @@ Phase 8A status: 完了。Playwright project skeleton bootstrap、dry-run、gene
 
 Phase 8B status: 完了。構造化Scenario rows JSONからのstatic Playwright test skeleton生成、BLOCKED status plan、generated manifest/checksum ownership checks、scenario metadata付きmanifest entry、CLI help、unit test、CI/README/INSTALL/SKILL/release docs更新を対象とする。Google Sheets write、DB、Playwright、npm、Composer、PHP、ブラウザ、Google APIは実行しない。
 
-Phase 8C以降は未着手。高度なlocator/page object support、Playwright runner orchestration、browser exploration、JavaScript parser、CakePHP高精度AST adapter、automatic root cause analysisは後続に残す。
+Phase 8C status: 完了。locator candidate model、confidence gate、manual override selection preservation、generated page object support、page object ownership conflict detection、generation statusへのlocator_stability連携、unit test、README/INSTALL/SKILL/release docs更新を対象とする。dynamic browser discovery、Playwright runner、network capture、DB、Google APIは実行しない。
+
+Phase 9A以降は未着手。Playwright runner orchestration、browser exploration、JavaScript parser、CakePHP高精度AST adapter、automatic root cause analysisは後続に残す。
 
 ## 目的
 

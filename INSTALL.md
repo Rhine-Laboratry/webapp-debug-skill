@@ -277,7 +277,7 @@ python scripts/generate_playwright_tests.py \
   --scenario-json .webapp-debug/state/snapshots/scenarios.json
 ```
 
-Playwright runner orchestrationと高度なlocator/page object supportは後続実装です。
+Playwright runner orchestrationは後続実装です。
 
 ## 13. Release readiness
 

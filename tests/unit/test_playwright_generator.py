@@ -44,6 +44,12 @@ def bootstrap(root: Path, capsys: pytest.CaptureFixture[str]) -> None:
     capsys.readouterr()
 
 
+def locator(kind: str = "ROLE", **values: object) -> str:
+    payload = {"kind": kind, "value": "ユーザー一覧", "role": "heading", "name": "ユーザー一覧"}
+    payload.update(values)
+    return json.dumps(payload, ensure_ascii=False, sort_keys=True)
+
+
 def scenario(
     *,
     scenario_id: str = "SCN-000001",
@@ -78,7 +84,7 @@ def scenario(
             or ScenarioAssertion(
                 ScenarioAssertionKind.VISIBLE,
                 "ユーザー一覧が表示される",
-                target="ユーザー一覧",
+                target=locator(),
             ),
         ),
         data_requirements=(
@@ -189,8 +195,9 @@ def test_dry_run_text_and_json_do_not_write(
     assert json_code == 0
     assert payload["data"]["dry_run"] is True
     assert payload["data"]["generated_count"] == 1
-    assert payload["data"]["planned_file_count"] == 3
+    assert payload["data"]["planned_file_count"] == 4
     assert not project_file(tmp_path, "generated/scn-000001-v1.spec.ts").exists()
+    assert not project_file(tmp_path, "pages/scn-000001-v1.page.ts").exists()
     assert not project_file(tmp_path, f"generated/{GENERATION_MANIFEST_NAME}").exists()
     assert_no_secret(text_out, text_err, json_out, json_err)
 
@@ -228,6 +235,7 @@ def test_apply_generates_spec_manifests_and_is_idempotent(
     first = json.loads(first_out)
     second = json.loads(second_out)
     spec = project_file(tmp_path, "generated/scn-000001-v1.spec.ts").read_text(encoding="utf-8")
+    page_object = project_file(tmp_path, "pages/scn-000001-v1.page.ts").read_text(encoding="utf-8")
     generation_manifest = json.loads(
         project_file(tmp_path, f"generated/{GENERATION_MANIFEST_NAME}").read_text(encoding="utf-8")
     )
@@ -240,18 +248,31 @@ def test_apply_generates_spec_manifests_and_is_idempotent(
     assert first_code == 0
     assert second_code == 0
     assert first["data"]["generated_count"] == 1
-    assert first["data"]["create_count"] == 2
+    assert first["data"]["create_count"] == 3
     assert first["data"]["update_count"] == 1
-    assert second["data"]["unchanged_count"] == 3
+    assert second["data"]["unchanged_count"] == 4
     assert "// scenario_id: SCN-000001" in spec
     assert 'await page.goto("/users");' in spec
+    assert "locator_stability: HIGH" in spec
+    assert "new ScenarioScn000001V1Page(page)" in spec
+    assert "scenarioPage.locator1()" in spec
+    assert 'getByRole("heading", { name: "ユーザー一覧" })' in page_object
     assert "test.only" not in spec
     assert "storageState" not in spec
     assert generation_manifest["scenarios"][0]["status"] == "GENERATED"
+    assert generation_manifest["scenarios"][0]["locator_stability"] == "HIGH"
     assert spec_entry["metadata"]["scenario_id"] == "SCN-000001"
     assert spec_entry["metadata"]["scenario_version"] == 1
     assert spec_entry["metadata"]["source_fingerprint"] == "sha256:source"
-    assert_no_secret(first_out, first_err, second_out, second_err, spec, generation_manifest)
+    assert_no_secret(
+        first_out,
+        first_err,
+        second_out,
+        second_err,
+        spec,
+        page_object,
+        generation_manifest,
+    )
 
 
 def test_unsupported_and_unsafe_scenarios_are_blocked_without_runnable_spec(
@@ -259,13 +280,12 @@ def test_unsupported_and_unsafe_scenarios_are_blocked_without_runnable_spec(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     bootstrap(tmp_path, capsys)
-    click = replace(
+    custom = replace(
         scenario(scenario_id="SCN-000001"),
         actions=(
             ScenarioAction(
-                ScenarioActionKind.CLICK,
-                "保存をクリックする",
-                target="保存",
+                ScenarioActionKind.CUSTOM,
+                "未対応操作を実行する",
             ),
         ),
     )
@@ -282,7 +302,7 @@ def test_unsupported_and_unsafe_scenarios_are_blocked_without_runnable_spec(
         scenario_id="SCN-000003",
         test_scope=ScenarioTestScope.MANUAL_REVIEW,
     )
-    scenario_path = write_scenarios(tmp_path, click, db_required, non_e2e)
+    scenario_path = write_scenarios(tmp_path, custom, db_required, non_e2e)
 
     code, out, err = run_cli(
         [
@@ -311,6 +331,72 @@ def test_unsupported_and_unsafe_scenarios_are_blocked_without_runnable_spec(
     }
     assert not project_file(tmp_path, "generated/scn-000001-v1.spec.ts").exists()
     assert_no_secret(out, err, status_manifest)
+
+
+def test_low_confidence_locator_is_blocked_with_review_required_status(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    bootstrap(tmp_path, capsys)
+    low = scenario(
+        assertion=ScenarioAssertion(
+            ScenarioAssertionKind.VISIBLE,
+            "ユーザー一覧が表示される",
+            target=locator("CSS", value=".content > div:nth-child(2)"),
+        )
+    )
+    scenario_path = write_scenarios(tmp_path, low)
+
+    code, out, err = run_cli(
+        [
+            "--root",
+            str(tmp_path),
+            "--scenario-json",
+            str(scenario_path),
+            "--format",
+            "json",
+        ],
+        capsys,
+    )
+
+    payload = json.loads(out)
+    status_manifest = json.loads(
+        project_file(tmp_path, f"generated/{GENERATION_MANIFEST_NAME}").read_text(encoding="utf-8")
+    )
+    assert code == 0
+    assert payload["data"]["blocked_count"] == 1
+    assert status_manifest["scenarios"][0]["reason_code"] == "LOCATOR_REVIEW_REQUIRED"
+    assert status_manifest["scenarios"][0]["locator_stability"] == "LOW"
+    assert not project_file(tmp_path, "generated/scn-000001-v1.spec.ts").exists()
+    assert_no_secret(out, err, status_manifest)
+
+
+def test_existing_non_generated_page_object_blocks_without_overwrite(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    bootstrap(tmp_path, capsys)
+    scenario_path = write_scenarios(tmp_path, scenario())
+    target = project_file(tmp_path, "pages/scn-000001-v1.page.ts")
+    target.write_text("manual page object\n", encoding="utf-8")
+
+    code, out, err = run_cli(
+        [
+            "--root",
+            str(tmp_path),
+            "--scenario-json",
+            str(scenario_path),
+            "--format",
+            "json",
+        ],
+        capsys,
+    )
+
+    payload = json.loads(out)
+    assert code == 3
+    assert payload["code"] == "PLAYWRIGHT_GENERATOR_FILE_CONFLICT"
+    assert target.read_text(encoding="utf-8") == "manual page object\n"
+    assert_no_secret(out, err)
 
 
 def test_existing_non_generated_spec_blocks_without_overwrite(

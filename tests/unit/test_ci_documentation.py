@@ -164,7 +164,6 @@ def test_changelog_does_not_claim_future_engines_are_implemented() -> None:
     assert "CakePHP static Inventory discovery" in added
     for not_implemented in (
         "JavaScript parsing",
-        "Advanced locator/page object support",
         "Playwright runner orchestration",
     ):
         assert not_implemented not in added

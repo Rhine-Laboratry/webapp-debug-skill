@@ -66,7 +66,7 @@ When `scripts/init_sheets.py --create` is used, the created Spreadsheet is not a
 - README, INSTALL, DECISIONS, CHANGELOG, and this checklist match the implemented behavior.
 - `docs/RELEASE_NOTES_v0.2.0.md` exists and matches the release scope.
 - `docs/IMPLEMENTATION_PLAN.md` does not mark future phases complete.
-- Known limitations still list dynamic browser discovery, Test Runs/Defects Sheets apply, JavaScript parsing, advanced locator/page object support, Playwright runner orchestration, Drive API sharing/deletion, and binary artifact PII redaction as unimplemented.
+- Known limitations still list dynamic browser discovery, Test Runs/Defects Sheets apply, JavaScript parsing, Playwright runner orchestration, Drive API sharing/deletion, and binary artifact PII redaction as unimplemented.
 - Version bump and release automation policy is still undecided unless a later phase records a concrete decision.
 
 Tag creation is manual and must not happen until all checks above are true. Example only:
@@ -81,6 +81,6 @@ GitHub Release creation is also manual. PyPI and Docker publishing are not suppo
 
 Summarize:
 
-- Added deterministic validators, redaction, WAL, Sheets initialization, cooperative lock, coverage evaluator, read-only snapshot export, CakePHP static Inventory discovery, local Inventory sync planning/apply, local Scenario sync planning/apply, Playwright project skeleton bootstrap, static Scenario-to-Playwright skeleton generation, and CI.
+- Added deterministic validators, redaction, WAL, Sheets initialization, cooperative lock, coverage evaluator, read-only snapshot export, CakePHP static Inventory discovery, local Inventory sync planning/apply, local Scenario sync planning/apply, Playwright project skeleton bootstrap, static Scenario-to-Playwright skeleton generation, locator/page object support, and CI.
 - Clarified opt-in Google integration test boundaries.
-- Repeated that dynamic discovery, Test Runs/Defects Sheets apply, JavaScript parsing, advanced locator/page object support, and Playwright runner orchestration remain future work.
+- Repeated that dynamic discovery, Test Runs/Defects Sheets apply, JavaScript parsing, and Playwright runner orchestration remain future work.
