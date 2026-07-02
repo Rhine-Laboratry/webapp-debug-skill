@@ -23,6 +23,7 @@ python scripts/init_sheets.py --help
 python scripts/evaluate_coverage.py --help
 python scripts/export_sheets_snapshot.py --help
 python scripts/discover_cakephp_inventory.py --help
+python scripts/plan_inventory_sync.py --help
 python scripts/release_check.py --version 0.2.0
 python scripts/release_check.py --version 0.2.0 --format json
 ```
@@ -75,6 +76,6 @@ GitHub Release creation is also manual. PyPI and Docker publishing are not suppo
 
 Summarize:
 
-- Added deterministic validators, redaction, WAL, Sheets initialization, cooperative lock, coverage evaluator, read-only snapshot export, CakePHP static Inventory discovery, and CI.
+- Added deterministic validators, redaction, WAL, Sheets initialization, cooperative lock, coverage evaluator, read-only snapshot export, CakePHP static Inventory discovery, local Inventory sync planning, and CI.
 - Clarified opt-in Google integration test boundaries.
 - Repeated that dynamic discovery, Sheets sync from discovery output, JavaScript parsing, and Playwright generation remain future work.

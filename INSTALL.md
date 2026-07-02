@@ -165,6 +165,7 @@ python scripts/redact_artifact.py --help
 python scripts/evaluate_coverage.py --help
 python scripts/export_sheets_snapshot.py --help
 python scripts/discover_cakephp_inventory.py --help
+python scripts/plan_inventory_sync.py --help
 python scripts/release_check.py --version 0.2.0
 python scripts/release_check.py --version 0.2.0 --format json
 ```
@@ -193,7 +194,21 @@ python scripts/evaluate_coverage.py \
 
 CakePHP 3.x〜5.xを主対象とし、CakePHP 2.xはgeneric解析です。動的routeや解析不能箇所は `DISCOVERY_GAP` として残します。
 
-## 11. Release readiness
+## 11. Inventory sync plan
+
+Discovery JSONとread-only Sheets snapshot JSONから、Sheetsへ適用する前のローカル同期計画を生成できます。このCLIはGoogle Sheets API、DB、ブラウザ、Playwright、PHP、Composerを実行しません。
+
+```bash
+python scripts/plan_inventory_sync.py \
+  --discovery-json .webapp-debug/state/discovery/inventory.json \
+  --snapshot-json .webapp-debug/state/snapshots/snapshot.json \
+  --schema skills/webapp-debug/assets/google-sheets-schema.json \
+  --output .webapp-debug/state/sync/inventory-sync-plan.json
+```
+
+既存出力は `--force` なしでは拒否します。`--allow-retire-missing` を付けた場合だけ、discoveryから消えた管理対象Inventoryを `RETIRED` にする計画を作れます。実際のSheets反映はPhase 6C以降です。
+
+## 12. Release readiness
 
 v0.2.0の準備状態は次で確認します。
 
@@ -205,7 +220,7 @@ version sourceは `pyproject.toml` の `project.version` です。`src/webapp_de
 
 release前に `docs/RELEASE_CHECKLIST.md` と `docs/RELEASE_NOTES_v0.2.0.md` を確認してください。
 
-## 12. Opt-in統合テスト
+## 13. Opt-in統合テスト
 
 既定ではskipされます。
 

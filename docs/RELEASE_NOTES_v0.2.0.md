@@ -4,7 +4,7 @@ Target tag: `v0.2.0`
 
 ## Positioning
 
-v0.2.0 is a runtime hardening release for the `webapp-debug` Agent Skill. It makes the helper scripts, validation flow, Google Sheets initialization, recovery primitives, coverage gate, CakePHP static discovery, and CI checks deterministic enough to support later test-generation work.
+v0.2.0 is a runtime hardening release for the `webapp-debug` Agent Skill. It makes the helper scripts, validation flow, Google Sheets initialization, recovery primitives, coverage gate, CakePHP static discovery, local Inventory sync planning, and CI checks deterministic enough to support later test-generation work.
 
 This release implements read-only CakePHP static Inventory discovery. It does not implement dynamic browser exploration, Sheets sync from discovery output, or Playwright Scenario generation.
 
@@ -22,11 +22,13 @@ This release implements read-only CakePHP static Inventory discovery. It does no
 - Bounded coverage gate evaluator with strict and explicit risk-gated modes.
 - Read-only Sheets snapshot export for coverage/report JSON input.
 - CakePHP static Inventory discovery that writes local JSON snapshots without running PHP, Composer, DB, browser, or Google Sheets operations.
+- Local Inventory sync planning from discovery JSON and read-only Sheets snapshot JSON without applying writes.
 - GitHub Actions CI workflow.
 - Release checklist and release readiness self-check.
 
 ## Not Implemented
 
+- Inventory sync plan application to Google Sheets is not implemented.
 - Dynamic browser discovery and Sheets sync from discovery output are not implemented.
 - High-precision CakePHP AST adapters are not implemented.
 - JavaScript discovery is not implemented.
@@ -67,6 +69,7 @@ python scripts/init_sheets.py --help
 python scripts/evaluate_coverage.py --help
 python scripts/export_sheets_snapshot.py --help
 python scripts/discover_cakephp_inventory.py --help
+python scripts/plan_inventory_sync.py --help
 python scripts/release_check.py --version 0.2.0
 python scripts/release_check.py --version 0.2.0 --format json
 ```

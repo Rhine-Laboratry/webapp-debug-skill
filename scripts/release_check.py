@@ -40,6 +40,7 @@ REQUIRED_SCRIPTS = (
     "scripts/evaluate_coverage.py",
     "scripts/export_sheets_snapshot.py",
     "scripts/discover_cakephp_inventory.py",
+    "scripts/plan_inventory_sync.py",
     "scripts/release_check.py",
 )
 REQUIRED_FILES = (

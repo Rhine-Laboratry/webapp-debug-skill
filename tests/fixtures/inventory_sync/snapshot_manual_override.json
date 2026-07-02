@@ -1,0 +1,25 @@
+{
+  "tabs": {
+    "Inventory": [
+      {
+        "inventory_id": "INV-001",
+        "feature_area": "Users",
+        "item_type": "UI_PAGE",
+        "name": "Users::index",
+        "actor_roles": ["user"],
+        "route_or_trigger": "/users",
+        "source_path": "src/Controller/UsersController.php",
+        "source_symbol": "Users::index",
+        "source_lines": "6",
+        "source_fingerprint": "sha256:new",
+        "test_scope": "E2E_PLAYWRIGHT",
+        "recommended_test_type": "playwright",
+        "discovery_status": "DISCOVERED",
+        "reachability": "CODE_ONLY",
+        "risk": "LOW",
+        "manual_override": "true",
+        "notes": "human note"
+      }
+    ]
+  }
+}

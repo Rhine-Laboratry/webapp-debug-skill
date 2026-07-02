@@ -1,0 +1,12 @@
+{
+  "Inventory": [],
+  "Discovery Gaps": [
+    {
+      "inventory_id": "INV-TEMP-GAP",
+      "reason_code": "DISCOVERY_DYNAMIC_ROUTE",
+      "source_code_reference": "config/routes.php:3",
+      "summary": "Dynamic route",
+      "confidence": "LOW"
+    }
+  ]
+}

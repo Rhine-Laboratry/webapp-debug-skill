@@ -36,7 +36,23 @@ The static discovery CLI:
 
 `scripts/discover_cakephp_inventory.py` emits JSON with top-level `Inventory`, `Discovery Gaps`, `summary`, and `source`.
 
-Inventory rows use deterministic temporary IDs with the `INV-TEMP-` prefix. Initial statuses are `DISCOVERED` or `DISCOVERY_GAP`; the static discovery step does not mark rows as `MAPPED` or `EXCLUDED_WITH_REASON`.
+Inventory rows use deterministic temporary IDs with the `INV-TEMP-` prefix and stable `source_key` / `source_fingerprint` values. Initial statuses are `DISCOVERED` or `DISCOVERY_GAP`; the static discovery step does not mark rows as `MAPPED` or `EXCLUDED_WITH_REASON`.
+
+## Sync Planning
+
+`scripts/plan_inventory_sync.py` compares CakePHP discovery JSON with a read-only Sheets snapshot JSON and writes a local sync plan. It does not call Google Sheets APIs, DBs, browsers, Playwright, PHP, Composer, or npm.
+
+Matching priority is:
+
+1. `source_fingerprint`
+2. `source_key`
+3. `discovery_source` + `source_code_reference` + feature name
+4. route/trigger + actor + feature name
+5. `inventory_id`
+
+Ambiguous matches, duplicate fingerprints, duplicate Inventory IDs, invalid status/risk values, and protected manual overrides are conflicts. Human-editable columns such as `notes`, `manual_override`, `manual_expected_behavior`, `manual_exclusion_reason`, `manual_priority`, and `human_`/`manual_` prefixed fields are not auto-updated.
+
+Rows missing from discovery are not marked `RETIRED` unless `--allow-retire-missing` is explicitly set, and only managed static-discovery rows are eligible. The plan never creates a physical delete operation.
 
 ## Limits
 

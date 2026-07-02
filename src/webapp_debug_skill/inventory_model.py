@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -51,6 +52,7 @@ class InventoryCandidate:
         ).hexdigest()
         return {
             "inventory_id": self.inventory_id,
+            "source_key": safe_text(self.source_key),
             "feature_area": safe_text(self.feature_area),
             "feature_name": safe_text(self.name),
             "item_type": self.item_type,
@@ -103,11 +105,13 @@ class DiscoveryGap:
     def to_inventory_row(self, *, generated_at: str, commit: str = "UNKNOWN") -> dict[str, Any]:
         """Represent a gap as an open Inventory row."""
 
+        key = f"gap|{self.reason_code}|{self.source_path}|{self.source_line}|{self.summary}"
         fingerprint = hashlib.sha256(
             f"{self.reason_code}|{self.source_path}|{self.source_line}".encode("utf-8")
         ).hexdigest()
         return {
             "inventory_id": self.inventory_id,
+            "source_key": safe_text(key),
             "feature_area": "Discovery Gap",
             "feature_name": self.reason_code,
             "item_type": "UI_PAGE",
@@ -210,7 +214,7 @@ def safe_text(value: str) -> str:
 
     if secret_findings(value):
         return "<REDACTED:SECRET>"
-    redacted = redact_inline_text(value, {}, {})
+    redacted = redact_inline_text(value, Counter(), {})
     if secret_findings(redacted):
         return "<REDACTED:SECRET>"
     return " ".join(redacted.split())

@@ -1019,7 +1019,9 @@ docs: finalize v0.2 hardening workflow and CI
 
 Phase 6A status: 完了。CakePHP static Inventory discovery、ローカルJSON snapshot出力、coverage evaluator互換、unit test、README/INSTALL/SKILL/reference更新を対象とする。
 
-Phase 6B以降は未着手。Playwright Scenario generation、browser exploration、Sheets sync、JavaScript parser、CakePHP高精度AST adapter、automatic root cause analysisは後続に残す。
+Phase 6B status: 完了。CakePHP discovery JSONとread-only Sheets snapshot JSONから、Inventory同期計画をローカルJSONとして生成する。Sheets write/applyはPhase 6C以降に残す。
+
+Phase 6C以降は未着手。Sync planのGoogle Sheets適用、Playwright Scenario generation、browser exploration、JavaScript parser、CakePHP高精度AST adapter、automatic root cause analysisは後続に残す。
 
 ## 目的
 
@@ -1067,6 +1069,39 @@ Inventory初期statusは `DISCOVERED` または `DISCOVERY_GAP` とし、Phase 6
 - template discovery: form/link/postLink/upload/download hint。
 - deterministic Inventory ID、route/controller/template merge、coverage evaluator互換、絶対path非出力、secret非漏えい。
 - CLI: help、text/json、root不正、output exists、force、symlink拒否、max-files、non-Cake app、atomic output、外部実行なし。
+
+## 6.4 `plan_inventory_sync.py`
+
+CLI:
+
+```bash
+python scripts/plan_inventory_sync.py \
+  --discovery-json .webapp-debug/state/discovery/inventory.json \
+  --snapshot-json .webapp-debug/state/snapshots/snapshot.json \
+  --schema skills/webapp-debug/assets/google-sheets-schema.json \
+  --output .webapp-debug/state/sync/inventory-sync-plan.json \
+  [--format text|json] \
+  [--force] \
+  [--allow-retire-missing] \
+  [--max-operations 10000]
+```
+
+制約:
+
+- Google Sheets API write/read、DB、ブラウザ、Playwright、PHP、Composer、npm、ネットワークを実行しない。
+- 出力pathはatomic writeし、既存fileは `--force` なしで拒否する。
+- 出力pathがdiscovery/snapshot/schema入力と同一の場合は拒否する。
+- 人間編集列と未知列は自動更新対象にしない。
+- conflictがある場合はplanにconflictsを含め、CLIはexit 3で停止する。
+- `--allow-retire-missing` がない限り、discoveryから消えた既存Inventoryを `RETIRED` にしない。
+
+## Phase 6Bテスト
+
+- identity matching: `source_fingerprint`、`source_key`、source anchor、route/actor/feature、`inventory_id`。
+- duplicate fingerprint / duplicate Inventory ID / ambiguous match / invalid status / invalid risk / fingerprint mismatch conflict。
+- append、update、noop、Discovery Gap append、retire disabled/enabled、manual override保護。
+- canonical schema列だけをoperation rowへ含め、人間編集列を保持する。
+- CLI: help、text/json、入力欠落、invalid JSON、output exists、force、symlink拒否、input同一path拒否、conflict、max operations、atomic output、外部実行なし、secret非漏えい。
 
 ---
 

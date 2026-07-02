@@ -1,0 +1,29 @@
+{
+  "snapshot_schema_version": 1,
+  "source": {"kind": "google_sheets"},
+  "tabs": {
+    "Inventory": [
+      {
+        "inventory_id": "INV-001",
+        "feature_area": "Users",
+        "item_type": "UI_PAGE",
+        "name": "Users::index",
+        "actor_roles": ["user"],
+        "route_or_trigger": "/users",
+        "source_path": "src/Controller/UsersController.php",
+        "source_symbol": "Users::index",
+        "source_lines": "6",
+        "source_fingerprint": "sha256:new",
+        "test_scope": "E2E_PLAYWRIGHT",
+        "recommended_test_type": "playwright",
+        "discovery_status": "DISCOVERED",
+        "reachability": "CODE_ONLY",
+        "risk": "MEDIUM",
+        "discovered_at": "2026-01-01T00:00:00Z",
+        "last_seen_commit": "abc",
+        "last_seen_at": "2026-01-01T00:00:00Z",
+        "notes": "human note"
+      }
+    ]
+  }
+}

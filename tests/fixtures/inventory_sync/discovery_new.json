@@ -1,0 +1,31 @@
+{
+  "snapshot_schema_version": 1,
+  "source": {"kind": "cakephp_static_discovery"},
+  "Inventory": [
+    {
+      "inventory_id": "INV-TEMP-NEW",
+      "source_key": "controller|Users|index",
+      "feature_area": "Users",
+      "feature_name": "Users::index",
+      "item_type": "UI_PAGE",
+      "actor": "user",
+      "actor_roles": ["user"],
+      "route_or_url": "/users",
+      "route_or_trigger": "/users",
+      "source_code_reference": "src/Controller/UsersController.php:6",
+      "source_path": "src/Controller/UsersController.php",
+      "source_symbol": "Users::index",
+      "source_lines": "6",
+      "source_fingerprint": "sha256:new",
+      "test_scope": "E2E_PLAYWRIGHT",
+      "recommended_test_type": "playwright",
+      "status": "DISCOVERED",
+      "discovery_status": "DISCOVERED",
+      "risk": "MEDIUM",
+      "discovery_source": "cakephp_controller",
+      "confidence": "HIGH",
+      "notes": "explicit route"
+    }
+  ],
+  "Discovery Gaps": []
+}

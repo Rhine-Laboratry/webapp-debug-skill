@@ -11,6 +11,7 @@
 
 - フレームワーク固有の探索面を列挙する。
 - CakePHPでは `scripts/discover_cakephp_inventory.py` により、Routes、Controller action、template hint、plugin/prefix、authorization/model hintを静的に収集し、ローカルInventory JSONへ出力する。
+- Sheets反映前には `scripts/export_sheets_snapshot.py` でread-only snapshotを作成し、`scripts/plan_inventory_sync.py` でローカルsync planを生成する。Phase 6B時点ではplanをGoogle Sheetsへ適用しない。
 - 静的discoveryはPHP、Composer、DB、ブラウザ、Google APIを実行しない。
 - ルート、Controller action、権限、validation、template、JS、mailer、帳票をsource anchor付きでInventoryへ登録する。
 - API-only、Command、queue、外部連携は `OTHER_TEST_REQUIRED` として残す。
@@ -26,6 +27,7 @@
 ## Phase 3: Reconciliation
 
 - 静的Inventoryとブラウザ観測をsource fingerprint、route、symbol、roleで照合する。
+- Phase 6Bのローカルsync planningでは、discovery JSONとread-only Sheets snapshotを照合し、append/update/retire/gapの計画とconflictだけを出す。人間編集列は保持し、DELETE_ROWは作らない。
 - コードだけにある項目、ブラウザだけにある項目、矛盾を明示する。
 - 暫定仕様の根拠をScenarioへ保存する。
 - 各discovery pass後にcoverage gateを評価する。`coverage.max_discovery_passes` を超えて無制限に反復しない。

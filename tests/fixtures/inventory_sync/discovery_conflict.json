@@ -1,0 +1,26 @@
+{
+  "Inventory": [
+    {
+      "inventory_id": "INV-A",
+      "source_key": "a",
+      "feature_name": "A",
+      "source_fingerprint": "sha256:dup",
+      "source_code_reference": "src/A.php:1",
+      "route_or_url": "/a",
+      "actor": "user",
+      "status": "DISCOVERED",
+      "risk": "LOW"
+    },
+    {
+      "inventory_id": "INV-B",
+      "source_key": "b",
+      "feature_name": "B",
+      "source_fingerprint": "sha256:dup",
+      "source_code_reference": "src/B.php:1",
+      "route_or_url": "/b",
+      "actor": "user",
+      "status": "DISCOVERED",
+      "risk": "LOW"
+    }
+  ]
+}
