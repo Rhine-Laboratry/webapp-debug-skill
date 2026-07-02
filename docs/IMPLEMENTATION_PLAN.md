@@ -1,5 +1,13 @@
 # webapp-debug-skill v0.2 Runtime Hardening Implementation Plan
 
+## Long-horizon planning
+
+Phase 6C以降の実装順序、subagent orchestration、Phase別受け入れ条件は次の文書へ分離する。
+
+- [MASTER_IMPLEMENTATION_PLAN.md](MASTER_IMPLEMENTATION_PLAN.md)
+- [ORCHESTRATION_RUNBOOK.md](ORCHESTRATION_RUNBOOK.md)
+- [PHASE_ACCEPTANCE_CRITERIA.md](PHASE_ACCEPTANCE_CRITERIA.md)
+
 ## 1. 目的
 
 v0.1は、機能探索、Scenario生成、Playwright実行、Google Sheets管理、DB安全条件を詳細に定義している。一方、frontmatter互換性、設定／Sheets schema検証、Google Sheets初期化、協調ロック、WAL、redaction、coverage gateが決定的なスクリプトとして実装されていない。
