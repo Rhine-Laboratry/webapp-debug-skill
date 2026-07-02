@@ -40,6 +40,7 @@ def test_readme_and_install_include_major_cli_names() -> None:
         "scripts/redact_artifact.py",
         "scripts/evaluate_coverage.py",
         "scripts/export_sheets_snapshot.py",
+        "scripts/discover_cakephp_inventory.py",
         "scripts/release_check.py",
     ):
         assert script in docs
@@ -49,8 +50,8 @@ def test_changelog_does_not_mark_future_engines_as_added() -> None:
     changelog = read_text("CHANGELOG.md")
     added = changelog.split("### Added", 1)[1].split("### Changed", 1)[0]
 
+    assert "CakePHP static Inventory discovery" in added
     for future_feature in (
-        "CakePHP discovery",
         "JavaScript parsing",
         "Playwright Scenario generation",
         "Playwright runner orchestration",

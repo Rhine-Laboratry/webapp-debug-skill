@@ -39,6 +39,7 @@ REQUIRED_SCRIPTS = (
     "scripts/redact_artifact.py",
     "scripts/evaluate_coverage.py",
     "scripts/export_sheets_snapshot.py",
+    "scripts/discover_cakephp_inventory.py",
     "scripts/release_check.py",
 )
 REQUIRED_FILES = (
@@ -280,7 +281,6 @@ def check_changelog(root: Path, version: str) -> list[Issue]:
         return [Issue("CHANGELOG.md", "VERSION_MISSING")]
     added = section_between(text, "### Added", "### Changed")
     for phrase in (
-        "CakePHP discovery",
         "JavaScript parsing",
         "Playwright Scenario generation",
         "Playwright runner orchestration",
@@ -302,7 +302,7 @@ def check_release_note(root: Path, relative: str, version: str, tag: str) -> lis
     if tag not in text:
         issues.append(Issue(relative, "TAG_MISSING"))
     for phrase in (
-        "CakePHP discovery engine is not implemented",
+        "Dynamic browser discovery and Sheets sync from discovery output are not implemented",
         "Playwright scenario generation is not implemented",
     ):
         if phrase not in text:

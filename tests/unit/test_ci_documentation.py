@@ -87,6 +87,7 @@ def test_ci_workflow_static_shape_and_required_commands() -> None:
         "python scripts/init_sheets.py --help",
         "python scripts/evaluate_coverage.py --help",
         "python scripts/export_sheets_snapshot.py --help",
+        "python scripts/discover_cakephp_inventory.py --help",
         "python scripts/release_check.py --version 0.2.0",
     ):
         assert expected in commands
@@ -138,6 +139,7 @@ def test_documented_script_commands_exist() -> None:
         "scripts/redact_artifact.py",
         "scripts/evaluate_coverage.py",
         "scripts/export_sheets_snapshot.py",
+        "scripts/discover_cakephp_inventory.py",
         "scripts/release_check.py",
     }.issubset(script_paths)
     for script_path in script_paths:
@@ -147,8 +149,8 @@ def test_documented_script_commands_exist() -> None:
 def test_changelog_does_not_claim_future_engines_are_implemented() -> None:
     changelog = read_text("CHANGELOG.md")
     added = changelog.split("### Added", 1)[1].split("### Changed", 1)[0]
+    assert "CakePHP static Inventory discovery" in added
     for not_implemented in (
-        "CakePHP discovery",
         "JavaScript parsing",
         "Playwright Scenario generation",
         "Playwright runner orchestration",
@@ -166,6 +168,7 @@ def test_release_checklist_records_ci_and_opt_in_boundaries() -> None:
         "python scripts/init_sheets.py --help",
         "python scripts/evaluate_coverage.py --help",
         "python scripts/export_sheets_snapshot.py --help",
+        "python scripts/discover_cakephp_inventory.py --help",
         "python scripts/release_check.py --version 0.2.0",
         "skip real Google integration tests",
         "Drive API sharing or deletion",
@@ -180,6 +183,7 @@ def test_docs_and_workflow_do_not_contain_secret_marker() -> None:
         "INSTALL.md",
         "CHANGELOG.md",
         "docs/RELEASE_CHECKLIST.md",
+        "docs/RELEASE_NOTES_v0.2.0.md",
         ".github/workflows/ci.yml",
     ):
         assert SECRET_MARKER not in read_text(relative_path)

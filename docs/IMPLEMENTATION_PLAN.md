@@ -1015,6 +1015,61 @@ docs: finalize v0.2 hardening workflow and CI
 
 ---
 
+# Phase 6: Static discovery engines
+
+Phase 6A status: 完了。CakePHP static Inventory discovery、ローカルJSON snapshot出力、coverage evaluator互換、unit test、README/INSTALL/SKILL/reference更新を対象とする。
+
+Phase 6B以降は未着手。Playwright Scenario generation、browser exploration、Sheets sync、JavaScript parser、CakePHP高精度AST adapter、automatic root cause analysisは後続に残す。
+
+## 目的
+
+CakePHPアプリケーションをread-onlyに静的解析し、Routes、Controller action、template hint、plugin/prefix、authorization/model hintからInventory候補を生成する。Google Sheetsへ直接書かず、ローカルJSON snapshotとして保存する。
+
+## 6.1 `discover_cakephp_inventory.py`
+
+CLI:
+
+```bash
+python scripts/discover_cakephp_inventory.py \
+  --root <repo-root> \
+  --output .webapp-debug/state/discovery/inventory.json \
+  [--format text|json] \
+  [--force] \
+  [--max-files 5000] \
+  [--include-plugins] \
+  [--cakephp-version auto|2|3|4|5|generic]
+```
+
+制約:
+
+- PHP、Composer、npm、CakePHP command、DB、ブラウザ、Google API、ネットワークを実行しない。
+- `vendor/`、`node_modules/`、`tmp/`、`logs/`、`cache/`、`coverage/`、build output、`.env`、`local.php`、`app_local.php`、`database.php` は解析対象外。
+- 出力pathはatomic writeし、既存fileは `--force` なしで拒否する。
+- source referenceはrepo相対pathとlineのみで、絶対pathやraw source bodyを出力しない。
+
+## 6.2 対応範囲
+
+- CakePHP 3.x〜5.x: `config/routes.php`、`src/Controller/**/*Controller.php`、`templates/**/*`、`src/Template/**/*`、plugin routes/controllers/templates、`src/Model/Table`。
+- CakePHP 2.x: `app/Config/routes.php`、`app/Controller`、`app/View` をgeneric PHP解析として扱う。
+- 動的route、fallback、継承action、認可仕様の完全推論は断定せず `DISCOVERY_GAP` または低confidence候補として残す。
+
+## 6.3 出力
+
+出力JSONは `snapshot_schema_version`、`source`、`summary`、`Inventory`、`Discovery Gaps` を持つ。`Inventory` はPhase 4 coverage evaluatorの `--inventory-json` と互換にし、`status` と `risk` を含める。
+
+Inventory初期statusは `DISCOVERED` または `DISCOVERY_GAP` とし、Phase 6Aでは `MAPPED`、`EXCLUDED_WITH_REASON`、`RETIRED` にしない。
+
+## Phase 6Aテスト
+
+- CakePHP version detection。
+- route discovery: connect、scope、prefix、plugin、fallback、dynamic route gap。
+- controller discovery: public action、private/protected/lifecycle除外、HTTP method、feature hint、line reference。
+- template discovery: form/link/postLink/upload/download hint。
+- deterministic Inventory ID、route/controller/template merge、coverage evaluator互換、絶対path非出力、secret非漏えい。
+- CLI: help、text/json、root不正、output exists、force、symlink拒否、max-files、non-Cake app、atomic output、外部実行なし。
+
+---
+
 # 6. Codexへ渡すフェーズ別プロンプト
 
 ## Phase 1

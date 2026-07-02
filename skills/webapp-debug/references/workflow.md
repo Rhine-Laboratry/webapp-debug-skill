@@ -10,8 +10,11 @@
 ## Phase 1: Repository discovery
 
 - フレームワーク固有の探索面を列挙する。
+- CakePHPでは `scripts/discover_cakephp_inventory.py` により、Routes、Controller action、template hint、plugin/prefix、authorization/model hintを静的に収集し、ローカルInventory JSONへ出力する。
+- 静的discoveryはPHP、Composer、DB、ブラウザ、Google APIを実行しない。
 - ルート、Controller action、権限、validation、template、JS、mailer、帳票をsource anchor付きでInventoryへ登録する。
 - API-only、Command、queue、外部連携は `OTHER_TEST_REQUIRED` として残す。
+- 動的routeや解析不能箇所は `DISCOVERY_GAP` として残し、`MAPPED` とは扱わない。
 
 ## Phase 2: Passive browser discovery
 

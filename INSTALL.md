@@ -164,13 +164,36 @@ python scripts/init_sheets.py --help
 python scripts/redact_artifact.py --help
 python scripts/evaluate_coverage.py --help
 python scripts/export_sheets_snapshot.py --help
+python scripts/discover_cakephp_inventory.py --help
 python scripts/release_check.py --version 0.2.0
 python scripts/release_check.py --version 0.2.0 --format json
 ```
 
 CIにはGoogle credential env、実Spreadsheet ID、DB接続情報、Playwright実行、CakePHP parserを設定しません。実Google統合テストはCIでは自動実行せず、env未設定でskipされることを確認します。
 
-## 10. Release readiness
+## 10. CakePHP static discovery
+
+CakePHP Inventory候補を静的解析だけでローカルJSONへ出力できます。対象アプリのファイルは変更せず、PHP、Composer、DB、ブラウザ、Google APIを実行しません。
+
+```bash
+python scripts/discover_cakephp_inventory.py \
+  --root /path/to/cakephp-app \
+  --output .webapp-debug/state/discovery/inventory.json \
+  --include-plugins
+```
+
+生成JSONはcoverage evaluatorへ渡せます。
+
+```bash
+python scripts/evaluate_coverage.py \
+  --config .webapp-debug/config.yml \
+  --inventory-json .webapp-debug/state/discovery/inventory.json \
+  --current-pass 1
+```
+
+CakePHP 3.x〜5.xを主対象とし、CakePHP 2.xはgeneric解析です。動的routeや解析不能箇所は `DISCOVERY_GAP` として残します。
+
+## 11. Release readiness
 
 v0.2.0の準備状態は次で確認します。
 
@@ -182,7 +205,7 @@ version sourceは `pyproject.toml` の `project.version` です。`src/webapp_de
 
 release前に `docs/RELEASE_CHECKLIST.md` と `docs/RELEASE_NOTES_v0.2.0.md` を確認してください。
 
-## 11. Opt-in統合テスト
+## 12. Opt-in統合テスト
 
 既定ではskipされます。
 
@@ -214,7 +237,7 @@ python -m pytest tests/integration -q
 
 作成されたSpreadsheetは削除されません。共有設定も変更されません。
 
-## 12. Git除外
+## 13. Git除外
 
 ```bash
 cat skills/webapp-debug/assets/gitignore.fragment >> .gitignore
@@ -222,7 +245,7 @@ cat skills/webapp-debug/assets/gitignore.fragment >> .gitignore
 
 重複行は整理します。credential、`.webapp-debug/`、WAL、artifact、Playwright auth stateをGitに追加しないでください。
 
-## 13. トラブルシューティング
+## 14. トラブルシューティング
 
 - `GOOGLE_CREDENTIAL_ENV_MISSING`: configのcredential env名が空、または環境変数が未設定です。
 - `GOOGLE_CREDENTIAL_FILE_UNSAFE`: credential fileがsymlink、リポジトリ内、またはpermission不安全です。
@@ -233,7 +256,9 @@ cat skills/webapp-debug/assets/gitignore.fragment >> .gitignore
 - `CONFIG_TARGET_UNSAFE`: config write対象が存在しない、symlink、directory、またはcanonical assetです。
 - `SHEETS_SNAPSHOT_TAB_MISSING`: snapshot対象のcanonical tabがSpreadsheetにありません。初期化状態を確認してください。
 - `SHEETS_SNAPSHOT_HEADER_CONFLICT`: snapshot対象tabのheaderがcanonical schemaと完全一致していません。未知の末尾列は許可されますが、既定列の順序、大小文字、空列、重複、formula-like headerは拒否されます。
+- `DISCOVERY_NO_CAKEPHP_APP`: 指定rootにCakePHP構造を検出できません。
+- `DISCOVERY_TOO_MANY_FILES`: `--max-files` 上限を超えたため静的解析を停止しました。
 
-## 14. 次の実行
+## 15. 次の実行
 
 初回導線は `init` です。`discover` は非破壊の静的解析から始まり、DBガード未成立の場合はブラウザ探索をblockします。
