@@ -42,7 +42,10 @@ def test_readme_and_install_include_major_cli_names() -> None:
         "scripts/export_sheets_snapshot.py",
         "scripts/discover_cakephp_inventory.py",
         "scripts/plan_inventory_sync.py",
+        "scripts/apply_inventory_sync.py",
         "scripts/release_check.py",
+        "scripts/plan_scenario_sync.py",
+        "scripts/apply_scenario_sync.py",
     ):
         assert script in docs
 

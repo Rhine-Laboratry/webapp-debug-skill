@@ -168,6 +168,7 @@ python scripts/discover_cakephp_inventory.py --help
 python scripts/plan_inventory_sync.py --help
 python scripts/apply_inventory_sync.py --help
 python scripts/plan_scenario_sync.py --help
+python scripts/apply_scenario_sync.py --help
 python scripts/release_check.py --version 0.2.0
 python scripts/release_check.py --version 0.2.0 --format json
 ```
@@ -227,7 +228,7 @@ python scripts/apply_inventory_sync.py \
   --wal .webapp-debug/state/wal/inventory-apply.jsonl
 ```
 
-Scenario sync planはInventory/Scenario snapshotからローカルJSONとして生成できます。Google Sheetsへの適用は後続Phaseです。
+Scenario sync planはInventory/Scenario snapshotからローカルJSONとして生成できます。この段階ではGoogle Sheetsへ書き込みません。
 
 ```bash
 python scripts/plan_scenario_sync.py \
@@ -235,6 +236,23 @@ python scripts/plan_scenario_sync.py \
   --snapshot-json .webapp-debug/state/snapshots/snapshot.json \
   --schema skills/webapp-debug/assets/google-sheets-schema.json \
   --output .webapp-debug/state/sync/scenario-sync-plan.json
+```
+
+適用前にはdry-runでfresh snapshotとの整合を確認してください。実行時はSpreadsheet IDの完全一致確認、cooperative lock、WAL、read-back verificationを要求します。
+
+```bash
+python scripts/apply_scenario_sync.py \
+  --config .webapp-debug/config.yml \
+  --schema skills/webapp-debug/assets/google-sheets-schema.json \
+  --plan .webapp-debug/state/sync/scenario-sync-plan.json \
+  --dry-run
+
+python scripts/apply_scenario_sync.py \
+  --config .webapp-debug/config.yml \
+  --schema skills/webapp-debug/assets/google-sheets-schema.json \
+  --plan .webapp-debug/state/sync/scenario-sync-plan.json \
+  --confirm-spreadsheet-id <spreadsheet-id> \
+  --wal .webapp-debug/state/wal/scenario-apply.jsonl
 ```
 
 ## 12. Release readiness

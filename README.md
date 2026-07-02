@@ -2,7 +2,7 @@
 
 Webアプリケーションのコードベースとブラウザ動作から機能を棚卸しし、日本語のFeature／User Story／Scenario、Playwrightテスト、Google Sheets上の進捗・不具合記録を生成するAgent Skillです。
 
-現在の実装は、v0.2 Runtime Hardeningとして安全な初期化、検証基盤、bounded discovery coverage gate、Google Sheetsからのread-only snapshot export、CakePHP静的Inventory discovery、Inventory同期計画のローカル生成と明示確認付き適用を追加した状態です。Playwright生成器は後続実装です。
+現在の実装は、v0.2 Runtime Hardeningとして安全な初期化、検証基盤、bounded discovery coverage gate、Google Sheetsからのread-only snapshot export、CakePHP静的Inventory discovery、Inventory／Scenario同期計画のローカル生成と明示確認付き適用を追加した状態です。Playwright生成器は後続実装です。
 
 Phase 6C以降の長期計画とsubagent orchestration方針は、`docs/MASTER_IMPLEMENTATION_PLAN.md`、`docs/ORCHESTRATION_RUNBOOK.md`、`docs/PHASE_ACCEPTANCE_CRITERIA.md` にまとめています。これらは将来計画であり、未実装機能を実装済みと示すものではありません。
 
@@ -28,11 +28,12 @@ Phase 6C以降の長期計画とsubagent orchestration方針は、`docs/MASTER_I
 - `scripts/plan_inventory_sync.py` によるInventory sync plan JSON生成。Sheets writeは行わない
 - `scripts/apply_inventory_sync.py` によるInventory sync planのGoogle Sheets適用。実行時はSpreadsheet IDの完全一致確認、cooperative lock、WAL、read-backを要求する
 - `scripts/plan_scenario_sync.py` によるScenario sync plan JSON生成。Sheets writeは行わない
+- `scripts/apply_scenario_sync.py` によるScenario sync planのGoogle Sheets適用。実行時はSpreadsheet IDの完全一致確認、cooperative lock、WAL、read-backを要求する
 
 未実装:
 
-- Scenario sync planのGoogle Sheets適用
 - Playwright Scenario生成器／runner orchestration
+- Test Runs／DefectsのSheets適用
 - ブラウザ実行を伴う動的discovery
 - Drive APIによる共有、削除、権限設定
 - OAuthユーザーフロー、domain-wide delegation
@@ -112,6 +113,7 @@ python scripts/discover_cakephp_inventory.py --help
 python scripts/plan_inventory_sync.py --help
 python scripts/apply_inventory_sync.py --help
 python scripts/plan_scenario_sync.py --help
+python scripts/apply_scenario_sync.py --help
 python scripts/release_check.py --version 0.2.0
 ```
 
@@ -138,6 +140,7 @@ python scripts/discover_cakephp_inventory.py --help
 python scripts/plan_inventory_sync.py --help
 python scripts/apply_inventory_sync.py --help
 python scripts/plan_scenario_sync.py --help
+python scripts/apply_scenario_sync.py --help
 ```
 
 CIではGoogle credential env、実Spreadsheet ID、Drive API、DB、Playwright、CakePHP parserを設定または実行しません。`tests/integration` はopt-in env未設定によりskipされることを正常として確認します。
@@ -202,7 +205,7 @@ python scripts/apply_inventory_sync.py \
 
 ## Scenario sync plan
 
-Inventory/Scenario snapshotからFeature／Story／Scenarioのローカル同期計画を生成できます。この段階ではGoogle Sheetsへ書き込みません。
+Inventory/Scenario snapshotからFeature／Story／Scenarioのローカル同期計画を生成できます。plan生成段階ではGoogle Sheetsへ書き込みません。
 
 ```bash
 python scripts/plan_scenario_sync.py \
@@ -210,6 +213,23 @@ python scripts/plan_scenario_sync.py \
   --snapshot-json .webapp-debug/state/snapshots/snapshot.json \
   --schema skills/webapp-debug/assets/google-sheets-schema.json \
   --output .webapp-debug/state/sync/scenario-sync-plan.json
+```
+
+適用前にはdry-runでfresh snapshotとの整合を確認できます。通常実行ではSpreadsheet IDの完全一致確認が必須で、Scenario行とInventory mapping更新を1つのbatchUpdateで適用し、WAL pending、read-back、WAL ack、lock releaseの順に進みます。
+
+```bash
+python scripts/apply_scenario_sync.py \
+  --config .webapp-debug/config.yml \
+  --schema skills/webapp-debug/assets/google-sheets-schema.json \
+  --plan .webapp-debug/state/sync/scenario-sync-plan.json \
+  --dry-run
+
+python scripts/apply_scenario_sync.py \
+  --config .webapp-debug/config.yml \
+  --schema skills/webapp-debug/assets/google-sheets-schema.json \
+  --plan .webapp-debug/state/sync/scenario-sync-plan.json \
+  --confirm-spreadsheet-id <spreadsheet-id> \
+  --wal .webapp-debug/state/wal/scenario-apply.jsonl
 ```
 
 ## v0.2.0 release readiness
