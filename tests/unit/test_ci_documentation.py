@@ -89,6 +89,7 @@ def test_ci_workflow_static_shape_and_required_commands() -> None:
         "python scripts/export_sheets_snapshot.py --help",
         "python scripts/discover_cakephp_inventory.py --help",
         "python scripts/plan_inventory_sync.py --help",
+        "python scripts/apply_inventory_sync.py --help",
         "python scripts/release_check.py --version 0.2.0",
     ):
         assert expected in commands
@@ -142,6 +143,7 @@ def test_documented_script_commands_exist() -> None:
         "scripts/export_sheets_snapshot.py",
         "scripts/discover_cakephp_inventory.py",
         "scripts/plan_inventory_sync.py",
+        "scripts/apply_inventory_sync.py",
         "scripts/release_check.py",
     }.issubset(script_paths)
     for script_path in script_paths:
@@ -172,6 +174,7 @@ def test_release_checklist_records_ci_and_opt_in_boundaries() -> None:
         "python scripts/export_sheets_snapshot.py --help",
         "python scripts/discover_cakephp_inventory.py --help",
         "python scripts/plan_inventory_sync.py --help",
+        "python scripts/apply_inventory_sync.py --help",
         "python scripts/release_check.py --version 0.2.0",
         "skip real Google integration tests",
         "Drive API sharing or deletion",

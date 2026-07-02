@@ -41,6 +41,7 @@ REQUIRED_SCRIPTS = (
     "scripts/export_sheets_snapshot.py",
     "scripts/discover_cakephp_inventory.py",
     "scripts/plan_inventory_sync.py",
+    "scripts/apply_inventory_sync.py",
     "scripts/release_check.py",
 )
 REQUIRED_FILES = (
@@ -303,7 +304,7 @@ def check_release_note(root: Path, relative: str, version: str, tag: str) -> lis
     if tag not in text:
         issues.append(Issue(relative, "TAG_MISSING"))
     for phrase in (
-        "Dynamic browser discovery and Sheets sync from discovery output are not implemented",
+        "Dynamic browser discovery and Scenario/Test Runs/Defects Sheets sync are not implemented",
         "Playwright scenario generation is not implemented",
     ):
         if phrase not in text:

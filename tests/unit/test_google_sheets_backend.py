@@ -21,6 +21,7 @@ from webapp_debug_skill.sheets_client import (
     SetMetadata,
     SheetsBackendError,
     SheetsBatchInvalidError,
+    UpdateRowValues,
 )
 
 SECRET_MARKER = "SECRET_MARKER_GOOGLE_BACKEND"
@@ -232,12 +233,90 @@ def test_domain_mutation_order_and_unknown_tab_preserved() -> None:
     assert service.snapshot()["Unknown"] == [["U"]]
 
 
+def test_inventory_row_append_update_and_readback_use_string_values() -> None:
+    service = service_with(
+        extra={
+            "Inventory": [
+                ["inventory_id", "risk", "discovery_status", "notes"],
+                ["INV-001", "LOW", "DISCOVERED", "keep"],
+            ]
+        }
+    )
+
+    result = backend(service).apply_batch(
+        [
+            AppendRows(
+                "Inventory",
+                rows=((("inventory_id", "INV-002"), ("risk", "HIGH")),),
+            ),
+            UpdateRowValues(
+                "Inventory",
+                row_index=0,
+                values=(("risk", "MEDIUM"),),
+                expected_values=(("inventory_id", "INV-001"), ("risk", "LOW")),
+            ),
+        ]
+    )
+
+    rows = result.spreadsheet_state.rows_dict()["Inventory"]
+    requests = latest_batch_body(service)["requests"]
+    assert rows[0]["risk"] == "MEDIUM"
+    assert rows[0]["notes"] == "keep"
+    assert rows[1]["inventory_id"] == "INV-002"
+    assert rows[1]["risk"] == "HIGH"
+    assert all("formulaValue" not in str(request) for request in requests)
+    assert all("stringValue" in str(request) for request in requests)
+
+
+def test_inventory_row_expected_mismatch_writes_zero() -> None:
+    service = service_with(
+        extra={
+            "Inventory": [
+                ["inventory_id", "risk"],
+                ["INV-001", "LOW"],
+            ]
+        }
+    )
+
+    with pytest.raises(SheetsBatchInvalidError) as exc_info:
+        backend(service).apply_batch(
+            [
+                UpdateRowValues(
+                    "Inventory",
+                    row_index=0,
+                    values=(("risk", "HIGH"),),
+                    expected_values=(("risk", "MEDIUM"),),
+                )
+            ]
+        )
+
+    assert exc_info.value.reason == "EXPECTED_VALUE_MISMATCH"
+    assert service.batch_update_requests == []
+    assert service.snapshot()["Inventory"][1] == ["INV-001", "LOW"]
+
+
+def test_inventory_multiple_appends_in_one_batch_use_distinct_rows() -> None:
+    service = service_with(extra={"Inventory": [["inventory_id", "risk"]]})
+
+    backend(service).apply_batch(
+        [
+            AppendRows("Inventory", rows=((("inventory_id", "INV-001"), ("risk", "LOW")),)),
+            AppendRows("Inventory", rows=((("inventory_id", "INV-002"), ("risk", "HIGH")),)),
+        ]
+    )
+
+    assert service.snapshot()["Inventory"] == [
+        ["inventory_id", "risk"],
+        ["INV-001", "LOW"],
+        ["INV-002", "HIGH"],
+    ]
+
+
 @pytest.mark.parametrize(
     "mutation",
     [
         SetMetadata.from_mapping({"safe": SECRET_MARKER}),
         AddHeaders("Missing", ("Header",)),
-        AppendRows("Features", rows=((("Feature ID", "F-001"),),)),
     ],
 )
 def test_invalid_mutation_or_missing_target_writes_zero(mutation: object) -> None:

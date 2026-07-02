@@ -17,6 +17,7 @@ All notable changes to this project are recorded here.
 - Read-only Google Sheets snapshot export for coverage/report JSON input.
 - CakePHP static Inventory discovery that writes local JSON snapshots without running PHP, Composer, DB, browser, or Google Sheets operations.
 - Local Inventory sync planning from discovery JSON and read-only Sheets snapshot JSON without applying Google Sheets writes.
+- Inventory sync plan application to Google Sheets with Spreadsheet ID confirmation, cooperative lock, WAL, and read-back verification.
 - GitHub Actions CI for tests, integration skip confirmation, lint, validators, CLI help, and package checks.
 - Release notes draft and `scripts/release_check.py` readiness self-check for the `v0.2.0` target.
 
@@ -34,8 +35,7 @@ All notable changes to this project are recorded here.
 
 ### Known Limitations
 
-- Dynamic browser discovery, Sheets sync from discovery output, and high-precision CakePHP AST adapters are not implemented.
-- Inventory sync plan application to Google Sheets is not implemented.
+- Dynamic browser discovery, Scenario/Test Runs/Defects Sheets sync, and high-precision CakePHP AST adapters are not implemented.
 - JavaScript parsing and Playwright Scenario generation are not implemented.
 - Playwright runner orchestration is not implemented.
 - Drive API sharing, Spreadsheet deletion, OAuth user flow, and domain-wide delegation are not implemented.

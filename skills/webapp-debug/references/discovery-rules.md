@@ -40,7 +40,7 @@ Inventory rows use deterministic temporary IDs with the `INV-TEMP-` prefix and s
 
 ## Sync Planning
 
-`scripts/plan_inventory_sync.py` compares CakePHP discovery JSON with a read-only Sheets snapshot JSON and writes a local sync plan. It does not call Google Sheets APIs, DBs, browsers, Playwright, PHP, Composer, or npm.
+`scripts/plan_inventory_sync.py` compares CakePHP discovery JSON with a read-only Sheets snapshot JSON and writes a local sync plan. It does not call Google Sheets APIs, DBs, browsers, Playwright, PHP, Composer, or npm. `scripts/apply_inventory_sync.py` is the separate write path and requires dry-run support, exact Spreadsheet ID confirmation, cooperative lock, WAL, and read-back verification.
 
 Matching priority is:
 

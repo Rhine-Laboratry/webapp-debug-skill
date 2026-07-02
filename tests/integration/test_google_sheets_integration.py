@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 import sys
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -23,7 +24,10 @@ from webapp_debug_skill.wal import AppendOnlyWal
 pytestmark = pytest.mark.integration
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SCRIPT = REPO_ROOT / "scripts/init_sheets.py"
+INIT_SCRIPT = REPO_ROOT / "scripts/init_sheets.py"
+SNAPSHOT_SCRIPT = REPO_ROOT / "scripts/export_sheets_snapshot.py"
+PLAN_SCRIPT = REPO_ROOT / "scripts/plan_inventory_sync.py"
+APPLY_SCRIPT = REPO_ROOT / "scripts/apply_inventory_sync.py"
 SCHEMA = REPO_ROOT / "skills/webapp-debug/assets/google-sheets-schema.json"
 EXAMPLE_CONFIG = REPO_ROOT / "skills/webapp-debug/assets/webapp-debug.config.example.yml"
 
@@ -33,6 +37,7 @@ SPREADSHEET_ID_ENV = "WEBAPP_DEBUG_GOOGLE_SPREADSHEET_ID"
 CONFIRM_SPREADSHEET_ID_ENV = "WEBAPP_DEBUG_GOOGLE_CONFIRM_SPREADSHEET_ID"
 ALLOW_CREATE_ENV = "WEBAPP_DEBUG_GOOGLE_ALLOW_CREATE"
 CREATE_TITLE_ENV = "WEBAPP_DEBUG_GOOGLE_CREATE_TITLE"
+ALLOW_INVENTORY_APPLY_ENV = "WEBAPP_DEBUG_GOOGLE_ALLOW_INVENTORY_APPLY"
 
 
 @pytest.fixture(autouse=True)
@@ -75,6 +80,15 @@ def require_create_env() -> tuple[str, str]:
     return spreadsheet_id, os.environ[CREATE_TITLE_ENV]
 
 
+def require_inventory_apply_env() -> str:
+    """Return confirmed spreadsheet id or skip Inventory apply write coverage."""
+
+    spreadsheet_id = require_existing_env()
+    if os.environ.get(ALLOW_INVENTORY_APPLY_ENV) != "1":
+        pytest.skip("WEBAPP_DEBUG_GOOGLE_ALLOW_INVENTORY_APPLY=1 is required")
+    return spreadsheet_id
+
+
 def write_config(tmp_path: Path, *, spreadsheet_id: str, project_name: str) -> Path:
     """Write a tmp config that points at integration env names, not repo state."""
 
@@ -91,14 +105,18 @@ def write_config(tmp_path: Path, *, spreadsheet_id: str, project_name: str) -> P
     return target
 
 
-def run_init_sheets(args: list[str], tmp_path: Path) -> subprocess.CompletedProcess[str]:
-    """Run the real CLI with a safe integration environment."""
+def run_script(
+    script: Path,
+    args: list[str],
+    tmp_path: Path,
+) -> subprocess.CompletedProcess[str]:
+    """Run a real CLI with a safe integration environment."""
 
     env = os.environ.copy()
     env.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
     env["PYTHONPATH"] = str(REPO_ROOT / "src")
     process = subprocess.run(
-        [sys.executable, str(SCRIPT), *args],
+        [sys.executable, str(script), *args],
         check=False,
         text=True,
         capture_output=True,
@@ -107,6 +125,12 @@ def run_init_sheets(args: list[str], tmp_path: Path) -> subprocess.CompletedProc
     )
     assert_safe_output(process.stdout, process.stderr)
     return process
+
+
+def run_init_sheets(args: list[str], tmp_path: Path) -> subprocess.CompletedProcess[str]:
+    """Run init_sheets with a safe integration environment."""
+
+    return run_script(INIT_SCRIPT, args, tmp_path)
 
 
 def assert_safe_output(*values: str) -> None:
@@ -182,6 +206,35 @@ def assert_canonical_state(backend: GoogleSheetsBackend) -> None:
         assert tab_name in tabs
         assert tabs[tab_name][: len(headers)] == headers
     assert metadata.get(SCHEMA_VERSION_METADATA_KEY) == "1"
+
+
+def ensure_initialized(config: Path, backend: GoogleSheetsBackend, tmp_path: Path) -> None:
+    """Ensure the integration spreadsheet has canonical tabs."""
+
+    spreadsheet_id = backend.spreadsheet_id
+    inspection = backend.inspect_metadata_storage()
+    init_args = [
+        "--config",
+        str(config),
+        "--schema",
+        str(SCHEMA),
+        "--wal",
+        str(tmp_path / f"init-{uuid.uuid4().hex[:8]}.wal"),
+        "--run-id",
+        "integration-inventory-init",
+        "--format",
+        "json",
+    ]
+    if inspection.status == "MISSING":
+        init_args.extend(
+            [
+                "--bootstrap-lock-storage",
+                "--confirm-spreadsheet-id",
+                spreadsheet_id,
+            ]
+        )
+    assert_success(run_init_sheets(init_args, tmp_path))
+    assert_canonical_state(backend)
 
 
 def test_existing_spreadsheet_dry_run_bootstrap_init_and_noop(tmp_path: Path) -> None:
@@ -305,3 +358,118 @@ def test_create_spreadsheet_with_metadata_and_tmp_config_write(tmp_path: Path) -
     assert "Sheet1" not in state.tabs_dict()
     assert state.tabs_dict()["Metadata"][: len(METADATA_HEADERS)] == list(METADATA_HEADERS)
     assert_canonical_state(backend)
+
+
+def test_inventory_apply_cli_requires_extra_write_opt_in(tmp_path: Path) -> None:
+    spreadsheet_id = require_inventory_apply_env()
+    config = write_config(
+        tmp_path,
+        spreadsheet_id=spreadsheet_id,
+        project_name="webapp-debug integration inventory apply",
+    )
+    backend = google_backend(spreadsheet_id)
+    ensure_initialized(config, backend, tmp_path)
+
+    snapshot = tmp_path / "inventory-snapshot.json"
+    plan = tmp_path / "inventory-plan.json"
+    discovery = tmp_path / "inventory-discovery.json"
+    unique = uuid.uuid4().hex[:12]
+    inventory_id = f"INV-INTEGRATION-{unique}"
+    source_fingerprint = f"sha256:integration-{unique}"
+    discovery.write_text(
+        json.dumps(
+            {
+                "snapshot_schema_version": 1,
+                "source": {"kind": "integration"},
+                "Inventory": [
+                    {
+                        "inventory_id": inventory_id,
+                        "source_key": f"integration|{unique}",
+                        "feature_area": "Integration",
+                        "feature_name": f"Integration {unique}",
+                        "item_type": "UI_PAGE",
+                        "actor": "tester",
+                        "actor_roles": ["tester"],
+                        "route_or_url": f"/integration/{unique}",
+                        "route_or_trigger": f"/integration/{unique}",
+                        "source_code_reference": "tests/integration/test_google_sheets_integration.py",
+                        "source_path": "tests/integration/test_google_sheets_integration.py",
+                        "source_symbol": f"integration::{unique}",
+                        "source_lines": "1",
+                        "source_fingerprint": source_fingerprint,
+                        "test_scope": "E2E_PLAYWRIGHT",
+                        "recommended_test_type": "playwright",
+                        "status": "DISCOVERED",
+                        "discovery_status": "DISCOVERED",
+                        "risk": "LOW",
+                    }
+                ],
+                "Discovery Gaps": [],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    assert_success(
+        run_script(
+            SNAPSHOT_SCRIPT,
+            [
+                "--config",
+                str(config),
+                "--schema",
+                str(SCHEMA),
+                "--output",
+                str(snapshot),
+                "--tabs",
+                "Inventory",
+                "--format",
+                "json",
+            ],
+            tmp_path,
+        )
+    )
+    assert_success(
+        run_script(
+            PLAN_SCRIPT,
+            [
+                "--discovery-json",
+                str(discovery),
+                "--snapshot-json",
+                str(snapshot),
+                "--schema",
+                str(SCHEMA),
+                "--output",
+                str(plan),
+                "--format",
+                "json",
+            ],
+            tmp_path,
+        )
+    )
+    payload = assert_success(
+        run_script(
+            APPLY_SCRIPT,
+            [
+                "--config",
+                str(config),
+                "--schema",
+                str(SCHEMA),
+                "--plan",
+                str(plan),
+                "--confirm-spreadsheet-id",
+                spreadsheet_id,
+                "--wal",
+                str(tmp_path / "inventory-apply.wal"),
+                "--run-id",
+                "integration-inventory-apply",
+                "--format",
+                "json",
+            ],
+            tmp_path,
+        )
+    )
+
+    rows = backend.read_spreadsheet().rows_dict()["Inventory"]
+    assert payload["data"]["read_back_verified"] is True
+    assert any(row.get("inventory_id") == inventory_id for row in rows)

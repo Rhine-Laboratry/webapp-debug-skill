@@ -24,6 +24,7 @@ python scripts/evaluate_coverage.py --help
 python scripts/export_sheets_snapshot.py --help
 python scripts/discover_cakephp_inventory.py --help
 python scripts/plan_inventory_sync.py --help
+python scripts/apply_inventory_sync.py --help
 python scripts/release_check.py --version 0.2.0
 python scripts/release_check.py --version 0.2.0 --format json
 ```
@@ -61,7 +62,7 @@ When `scripts/init_sheets.py --create` is used, the created Spreadsheet is not a
 - README, INSTALL, DECISIONS, CHANGELOG, and this checklist match the implemented behavior.
 - `docs/RELEASE_NOTES_v0.2.0.md` exists and matches the release scope.
 - `docs/IMPLEMENTATION_PLAN.md` does not mark future phases complete.
-- Known limitations still list dynamic browser discovery, Sheets sync from discovery output, JavaScript parsing, Playwright generation/runner orchestration, Drive API sharing/deletion, and binary artifact PII redaction as unimplemented.
+- Known limitations still list dynamic browser discovery, Scenario/Test Runs/Defects Sheets sync, JavaScript parsing, Playwright generation/runner orchestration, Drive API sharing/deletion, and binary artifact PII redaction as unimplemented.
 - Version bump and release automation policy is still undecided unless a later phase records a concrete decision.
 
 Tag creation is manual and must not happen until all checks above are true. Example only:
@@ -76,6 +77,6 @@ GitHub Release creation is also manual. PyPI and Docker publishing are not suppo
 
 Summarize:
 
-- Added deterministic validators, redaction, WAL, Sheets initialization, cooperative lock, coverage evaluator, read-only snapshot export, CakePHP static Inventory discovery, local Inventory sync planning, and CI.
+- Added deterministic validators, redaction, WAL, Sheets initialization, cooperative lock, coverage evaluator, read-only snapshot export, CakePHP static Inventory discovery, local Inventory sync planning/apply, and CI.
 - Clarified opt-in Google integration test boundaries.
-- Repeated that dynamic discovery, Sheets sync from discovery output, JavaScript parsing, and Playwright generation remain future work.
+- Repeated that dynamic discovery, Scenario/Test Runs/Defects Sheets sync, JavaScript parsing, and Playwright generation remain future work.

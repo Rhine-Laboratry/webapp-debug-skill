@@ -1031,7 +1031,9 @@ Phase 6B status: 完了。CakePHP discovery JSONとread-only Sheets snapshot JSO
 
 Phase 6C1 status: 完了。Inventory sync plan apply engineのfake/unit基盤、typed row mutation、snapshot fingerprint／row coordinate／expected old values guard、WAL pending/read-back/ack順序、ambiguous write reconciliation unit testを対象とする。実Google Sheets適用CLIはPhase 6C2以降に残す。
 
-Phase 6C2以降は未着手。Sync planの実Google Sheets適用、Playwright Scenario generation、browser exploration、JavaScript parser、CakePHP高精度AST adapter、automatic root cause analysisは後続に残す。
+Phase 6C2 status: 完了。Inventory sync planを実Google Sheets adapterへ接続し、`scripts/apply_inventory_sync.py`、Spreadsheet ID完全一致確認、cooperative lock、WAL pending/read-back/ack、dry-run、fake/unit test、opt-in real integration境界を対象とする。
+
+Phase 7以降は未着手。Playwright Scenario generation、browser exploration、JavaScript parser、CakePHP高精度AST adapter、automatic root cause analysisは後続に残す。
 
 ## 目的
 

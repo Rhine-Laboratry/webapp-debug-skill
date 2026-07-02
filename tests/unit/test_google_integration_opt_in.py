@@ -21,6 +21,7 @@ def run_integration(env_updates: dict[str, str | None]) -> subprocess.CompletedP
         "WEBAPP_DEBUG_GOOGLE_CONFIRM_SPREADSHEET_ID",
         "WEBAPP_DEBUG_GOOGLE_ALLOW_CREATE",
         "WEBAPP_DEBUG_GOOGLE_CREATE_TITLE",
+        "WEBAPP_DEBUG_GOOGLE_ALLOW_INVENTORY_APPLY",
         "GOOGLE_APPLICATION_CREDENTIALS",
     ]:
         env.pop(key, None)

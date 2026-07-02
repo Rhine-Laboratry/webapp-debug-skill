@@ -25,6 +25,18 @@ WEBAPP_DEBUG_GOOGLE_CREATE_TITLE="webapp-debug integration test" \
 python -m pytest tests/integration -q
 ```
 
+Optional Inventory apply coverage writes one test row to the dedicated
+spreadsheet and therefore requires an extra opt-in:
+
+```bash
+WEBAPP_DEBUG_RUN_GOOGLE_INTEGRATION=1 \
+WEBAPP_DEBUG_GOOGLE_CREDENTIALS_FILE=/path/outside/repo/service-account.json \
+WEBAPP_DEBUG_GOOGLE_SPREADSHEET_ID=... \
+WEBAPP_DEBUG_GOOGLE_CONFIRM_SPREADSHEET_ID=... \
+WEBAPP_DEBUG_GOOGLE_ALLOW_INVENTORY_APPLY=1 \
+python -m pytest tests/integration -q
+```
+
 Rules:
 
 - Use only a dedicated test spreadsheet that the service account can edit.

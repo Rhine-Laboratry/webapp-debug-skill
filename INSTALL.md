@@ -206,7 +206,24 @@ python scripts/plan_inventory_sync.py \
   --output .webapp-debug/state/sync/inventory-sync-plan.json
 ```
 
-既存出力は `--force` なしでは拒否します。`--allow-retire-missing` を付けた場合だけ、discoveryから消えた管理対象Inventoryを `RETIRED` にする計画を作れます。実際のSheets反映はPhase 6C以降です。
+既存出力は `--force` なしでは拒否します。`--allow-retire-missing` を付けた場合だけ、discoveryから消えた管理対象Inventoryを `RETIRED` にする計画を作れます。
+
+適用前にはdry-runでfresh snapshotとの整合を確認してください。実行時はSpreadsheet IDの完全一致確認、cooperative lock、WAL、read-back verificationを要求します。
+
+```bash
+python scripts/apply_inventory_sync.py \
+  --config .webapp-debug/config.yml \
+  --schema skills/webapp-debug/assets/google-sheets-schema.json \
+  --plan .webapp-debug/state/sync/inventory-sync-plan.json \
+  --dry-run
+
+python scripts/apply_inventory_sync.py \
+  --config .webapp-debug/config.yml \
+  --schema skills/webapp-debug/assets/google-sheets-schema.json \
+  --plan .webapp-debug/state/sync/inventory-sync-plan.json \
+  --confirm-spreadsheet-id <spreadsheet-id> \
+  --wal .webapp-debug/state/wal/inventory-apply.jsonl
+```
 
 ## 12. Release readiness
 
@@ -247,6 +264,17 @@ WEBAPP_DEBUG_GOOGLE_SPREADSHEET_ID=... \
 WEBAPP_DEBUG_GOOGLE_CONFIRM_SPREADSHEET_ID=... \
 WEBAPP_DEBUG_GOOGLE_ALLOW_CREATE=1 \
 WEBAPP_DEBUG_GOOGLE_CREATE_TITLE="webapp-debug integration test" \
+python -m pytest tests/integration -q
+```
+
+Inventory applyも実Spreadsheetへ書いて確認する場合は、専用Spreadsheetに対して追加opt-inを設定します。
+
+```bash
+WEBAPP_DEBUG_RUN_GOOGLE_INTEGRATION=1 \
+WEBAPP_DEBUG_GOOGLE_CREDENTIALS_FILE=/path/outside/repo/service-account.json \
+WEBAPP_DEBUG_GOOGLE_SPREADSHEET_ID=... \
+WEBAPP_DEBUG_GOOGLE_CONFIRM_SPREADSHEET_ID=... \
+WEBAPP_DEBUG_GOOGLE_ALLOW_INVENTORY_APPLY=1 \
 python -m pytest tests/integration -q
 ```
 

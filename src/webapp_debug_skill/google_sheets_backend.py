@@ -15,16 +15,19 @@ from webapp_debug_skill.errors import (
 from webapp_debug_skill.redaction import secret_findings
 from webapp_debug_skill.sheets_client import (
     AddHeaders,
+    AppendRows,
     BatchResult,
     ClearMetadata,
     CreateTab,
     InitialSheetSpec,
     Mutation,
     SetMetadata,
+    SheetRow,
     SheetTab,
     SheetsBackendError,
     SheetsBatchInvalidError,
     SpreadsheetState,
+    UpdateRowValues,
     validate_batch,
     validate_plain_string,
 )
@@ -63,6 +66,7 @@ class RawSpreadsheetSnapshot:
     sheet_ids: Mapping[str, int]
     headers: Mapping[str, tuple[str, ...]]
     metadata_rows: Mapping[str, MetadataRow]
+    rows: Mapping[str, tuple[SheetRow, ...]]
 
 
 @dataclass(frozen=True)
@@ -215,19 +219,20 @@ class GoogleSheetsBackend:
     def read_spreadsheet(self) -> SpreadsheetState:
         """Read tab titles, header rows and metadata without mutation."""
 
-        snapshot = self._fetch_snapshot()
+        snapshot = self._fetch_snapshot(include_rows=True)
         return SpreadsheetState(
             spreadsheet_id=snapshot.spreadsheet_id,
             metadata=tuple(sorted((key, row.value) for key, row in snapshot.metadata_rows.items())),
             tabs=tuple(
-                SheetTab(title, headers) for title, headers in sorted(snapshot.headers.items())
+                SheetTab(title, headers, snapshot.rows.get(title, ()))
+                for title, headers in sorted(snapshot.headers.items())
             ),
         )
 
     def read_metadata(self, keys: Sequence[str]) -> dict[str, str]:
         """Read selected metadata keys."""
 
-        snapshot = self._fetch_snapshot()
+        snapshot = self._fetch_snapshot(include_rows=False)
         wanted = set(keys)
         return {key: row.value for key, row in snapshot.metadata_rows.items() if key in wanted}
 
@@ -274,7 +279,8 @@ class GoogleSheetsBackend:
 
         validate_batch(mutations)
         timestamp = format_rfc3339(self.clock())
-        snapshot = self._fetch_snapshot()
+        include_rows = any(isinstance(item, (AppendRows, UpdateRowValues)) for item in mutations)
+        snapshot = self._fetch_snapshot(include_rows=include_rows)
         requests = self._translate_batch(snapshot, mutations, timestamp)
         body = {"requests": requests, "includeSpreadsheetInResponse": False}
         try:
@@ -421,7 +427,7 @@ class GoogleSheetsBackend:
             ) from None
         return BatchResult(applied_mutations=2, spreadsheet_state=state)
 
-    def _fetch_snapshot(self) -> RawSpreadsheetSnapshot:
+    def _fetch_snapshot(self, *, include_rows: bool = False) -> RawSpreadsheetSnapshot:
         spreadsheet = self._execute_read(
             self.service.spreadsheets().get(
                 spreadsheetId=self.spreadsheet_id,
@@ -441,7 +447,11 @@ class GoogleSheetsBackend:
             (
                 f"{a1_quote_sheet_name(title)}!A:D"
                 if title == METADATA_TAB
-                else f"{a1_quote_sheet_name(title)}!1:1"
+                else (
+                    f"{a1_quote_sheet_name(title)}!A1:ZZ10001"
+                    if include_rows
+                    else f"{a1_quote_sheet_name(title)}!1:1"
+                )
             )
             for title in sheet_ids
         ]
@@ -459,6 +469,7 @@ class GoogleSheetsBackend:
         value_ranges = self._parse_value_ranges(values, len(ranges))
         headers: dict[str, tuple[str, ...]] = {}
         metadata_rows: dict[str, MetadataRow] = {}
+        data_rows: dict[str, tuple[SheetRow, ...]] = {}
         for title, value_range in zip(sheet_ids, value_ranges, strict=True):
             rows = value_range.get("values", [])
             if not isinstance(rows, list):
@@ -479,11 +490,18 @@ class GoogleSheetsBackend:
                             exit_code=EXIT_POLICY_BLOCKED,
                         )
                 headers[title] = header
+                if include_rows and header:
+                    data_rows[title] = tuple(
+                        self._sheet_row_from_values(header, row)
+                        for row in normalized_rows[1:]
+                        if any(cell != "" for cell in row)
+                    )
         return RawSpreadsheetSnapshot(
             spreadsheet_id=self.spreadsheet_id,
             sheet_ids=sheet_ids,
             headers=headers,
             metadata_rows=metadata_rows,
+            rows=data_rows,
         )
 
     def _execute_read(self, request: Any, operation: str) -> Any:
@@ -598,6 +616,7 @@ class GoogleSheetsBackend:
         requests: list[dict[str, Any]] = []
         sheet_ids = dict(snapshot.sheet_ids)
         headers = {title: list(values) for title, values in snapshot.headers.items()}
+        rows_by_tab = {title: list(values) for title, values in snapshot.rows.items()}
         metadata = {key: row for key, row in snapshot.metadata_rows.items()}
         metadata_sheet_id = sheet_ids[METADATA_TAB]
         next_sheet_id = max(sheet_ids.values(), default=999) + 1
@@ -611,6 +630,7 @@ class GoogleSheetsBackend:
                 next_sheet_id += 1
                 sheet_ids[mutation.name] = sheet_id
                 headers[mutation.name] = []
+                rows_by_tab[mutation.name] = []
                 requests.append(
                     {"addSheet": {"properties": {"sheetId": sheet_id, "title": mutation.name}}}
                 )
@@ -652,6 +672,58 @@ class GoogleSheetsBackend:
                                 metadata_sheet_id, row.row_index, "", timestamp
                             )
                         )
+            elif isinstance(mutation, AppendRows):
+                if mutation.tab_name not in sheet_ids:
+                    raise SheetsBatchInvalidError("mutations.tab_name", "TAB_MISSING")
+                header = headers.get(mutation.tab_name, [])
+                current_rows = rows_by_tab.setdefault(mutation.tab_name, [])
+                start_row = len(current_rows) + 1
+                for row_offset, row_values in enumerate(mutation.rows):
+                    row = dict(row_values)
+                    self._validate_row_columns(header, row, "mutations.rows")
+                    requests.append(
+                        self._row_request(
+                            sheet_ids[mutation.tab_name],
+                            start_row + row_offset,
+                            0,
+                            [row.get(column, "") for column in header],
+                        )
+                    )
+                    current_rows.append(
+                        SheetRow(tuple((column, row.get(column, "")) for column in header))
+                    )
+            elif isinstance(mutation, UpdateRowValues):
+                if mutation.tab_name not in sheet_ids:
+                    raise SheetsBatchInvalidError("mutations.tab_name", "TAB_MISSING")
+                header = headers.get(mutation.tab_name, [])
+                current_rows = rows_by_tab.setdefault(mutation.tab_name, [])
+                if mutation.row_index >= len(current_rows):
+                    raise SheetsBatchInvalidError("mutations.row_index", "ROW_MISSING")
+                current = current_rows[mutation.row_index].values_dict()
+                values = dict(mutation.values)
+                expected = dict(mutation.expected_values)
+                self._validate_row_columns(header, values, "mutations.values")
+                self._validate_row_columns(header, expected, "mutations.expected_values")
+                for column, expected_value in expected.items():
+                    if current.get(column, "") != expected_value:
+                        raise SheetsBatchInvalidError(
+                            "mutations.expected_values",
+                            "EXPECTED_VALUE_MISMATCH",
+                        )
+                for column, value in values.items():
+                    column_index = header.index(column)
+                    requests.append(
+                        self._row_request(
+                            sheet_ids[mutation.tab_name],
+                            mutation.row_index + 1,
+                            column_index,
+                            [value],
+                        )
+                    )
+                    current[column] = value
+                current_rows[mutation.row_index] = SheetRow(
+                    tuple((column, current.get(column, "")) for column in header)
+                )
             else:
                 raise SheetsBatchInvalidError("mutations", "UNKNOWN_MUTATION")
         return requests
@@ -669,6 +741,35 @@ class GoogleSheetsBackend:
                 "fields": "userEnteredValue",
             }
         }
+
+    def _row_request(
+        self,
+        sheet_id: int,
+        row_index: int,
+        column_index: int,
+        values: Sequence[str],
+    ) -> dict[str, Any]:
+        return {
+            "updateCells": {
+                "start": {"sheetId": sheet_id, "rowIndex": row_index, "columnIndex": column_index},
+                "rows": [{"values": [string_cell(value) for value in values]}],
+                "fields": "userEnteredValue",
+            }
+        }
+
+    def _sheet_row_from_values(self, header: Sequence[str], values: Sequence[str]) -> SheetRow:
+        padded = [*values, *[""] * len(header)][: len(header)]
+        return SheetRow(tuple(zip(header, padded, strict=True)))
+
+    def _validate_row_columns(
+        self,
+        header: Sequence[str],
+        values: Mapping[str, str],
+        path: str,
+    ) -> None:
+        for column in values:
+            if column not in header:
+                raise SheetsBatchInvalidError(path, "UNKNOWN_COLUMN")
 
     def _metadata_value_request(
         self,
