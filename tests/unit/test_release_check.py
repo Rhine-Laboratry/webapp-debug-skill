@@ -65,7 +65,7 @@ def make_release_root(tmp_path: Path, *, version: str = "0.2.0") -> Path:
 
 ### Known Limitations
 
-- Dynamic browser discovery and Scenario/Test Runs/Defects Sheets sync are not implemented.
+- Dynamic browser discovery and Scenario/Test Runs/Defects Sheets apply are not implemented.
 - High-precision CakePHP AST adapters are not implemented.
 - JavaScript parsing and Playwright Scenario generation are not implemented.
 - Playwright runner orchestration is not implemented.
@@ -81,7 +81,7 @@ def make_release_root(tmp_path: Path, *, version: str = "0.2.0") -> Path:
 
 Target tag: `v{version}`
 
-Dynamic browser discovery and Scenario/Test Runs/Defects Sheets sync are not implemented.
+Dynamic browser discovery and Scenario/Test Runs/Defects Sheets apply are not implemented.
 High-precision CakePHP AST adapters are not implemented.
 Playwright scenario generation is not implemented.
 """,

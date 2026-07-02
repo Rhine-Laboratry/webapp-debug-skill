@@ -83,6 +83,9 @@ jobs:
       - name: Check Inventory apply help
         run: python scripts/apply_inventory_sync.py --help
 
+      - name: Check Scenario sync plan help
+        run: python scripts/plan_scenario_sync.py --help
+
       - name: Check release readiness
         run: python scripts/release_check.py --version 0.2.0
 

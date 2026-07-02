@@ -20,10 +20,11 @@
 - read-only discovery JSONとsnapshot JSONからのInventory sync plan生成
 - Inventory sync planのGoogle Sheets適用CLI
 - typed Feature / Story / Scenario domain contract
+- Inventory/Scenario snapshot JSONからのScenario sync plan生成
 
 未実装:
 
-- Feature / Story / Scenario生成とScenario Sheets sync
+- Feature / Story / Scenario生成とScenario Sheets apply
 - Playwright project bootstrap、test generator、runner orchestration
 - Test Runs / Evidence / DefectsのSheets反映
 - trace/log/sourceからのroot cause analysis

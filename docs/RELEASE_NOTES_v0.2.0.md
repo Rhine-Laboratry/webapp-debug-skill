@@ -6,7 +6,7 @@ Target tag: `v0.2.0`
 
 v0.2.0 is a runtime hardening release for the `webapp-debug` Agent Skill. It makes the helper scripts, validation flow, Google Sheets initialization, recovery primitives, coverage gate, CakePHP static discovery, local Inventory sync planning/apply, and CI checks deterministic enough to support later test-generation work.
 
-This release implements read-only CakePHP static Inventory discovery and explicit Inventory sync plan application. It does not implement dynamic browser exploration, Scenario/Test Runs/Defects sync, or Playwright Scenario generation.
+This release implements read-only CakePHP static Inventory discovery, explicit Inventory sync plan application, and local Scenario sync planning. It does not implement dynamic browser exploration, Scenario/Test Runs/Defects apply, or Playwright Scenario generation.
 
 ## Implemented
 
@@ -24,12 +24,13 @@ This release implements read-only CakePHP static Inventory discovery and explici
 - CakePHP static Inventory discovery that writes local JSON snapshots without running PHP, Composer, DB, browser, or Google Sheets operations.
 - Local Inventory sync planning from discovery JSON and read-only Sheets snapshot JSON without applying writes.
 - Inventory sync plan application to Google Sheets with Spreadsheet ID confirmation, cooperative lock, WAL, and read-back verification.
+- Local Scenario sync planning from Inventory/Scenario snapshot JSON without applying writes.
 - GitHub Actions CI workflow.
 - Release checklist and release readiness self-check.
 
 ## Not Implemented
 
-- Dynamic browser discovery and Scenario/Test Runs/Defects Sheets sync are not implemented.
+- Dynamic browser discovery and Scenario/Test Runs/Defects Sheets apply are not implemented.
 - High-precision CakePHP AST adapters are not implemented.
 - JavaScript discovery is not implemented.
 - Playwright scenario generation is not implemented.
@@ -71,6 +72,7 @@ python scripts/export_sheets_snapshot.py --help
 python scripts/discover_cakephp_inventory.py --help
 python scripts/plan_inventory_sync.py --help
 python scripts/apply_inventory_sync.py --help
+python scripts/plan_scenario_sync.py --help
 python scripts/release_check.py --version 0.2.0
 python scripts/release_check.py --version 0.2.0 --format json
 ```
@@ -79,6 +81,6 @@ python scripts/release_check.py --version 0.2.0 --format json
 
 ## Known Limitations
 
-- Dynamic discovery, Scenario/Test Runs/Defects Sheets sync, JavaScript discovery, and Scenario generation remain future work.
+- Dynamic discovery, Scenario/Test Runs/Defects Sheets apply, JavaScript discovery, and Scenario generation remain future work.
 - CI proves the deterministic helper scripts and safety boundaries; it does not run browser E2E or real Google Sheets integration.
 - Release automation, PyPI publishing, Docker publishing, and GitHub Release creation are not implemented.

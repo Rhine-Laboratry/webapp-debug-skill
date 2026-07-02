@@ -166,6 +166,8 @@ python scripts/evaluate_coverage.py --help
 python scripts/export_sheets_snapshot.py --help
 python scripts/discover_cakephp_inventory.py --help
 python scripts/plan_inventory_sync.py --help
+python scripts/apply_inventory_sync.py --help
+python scripts/plan_scenario_sync.py --help
 python scripts/release_check.py --version 0.2.0
 python scripts/release_check.py --version 0.2.0 --format json
 ```
@@ -223,6 +225,16 @@ python scripts/apply_inventory_sync.py \
   --plan .webapp-debug/state/sync/inventory-sync-plan.json \
   --confirm-spreadsheet-id <spreadsheet-id> \
   --wal .webapp-debug/state/wal/inventory-apply.jsonl
+```
+
+Scenario sync planはInventory/Scenario snapshotからローカルJSONとして生成できます。Google Sheetsへの適用は後続Phaseです。
+
+```bash
+python scripts/plan_scenario_sync.py \
+  --discovery-json .webapp-debug/state/discovery/inventory.json \
+  --snapshot-json .webapp-debug/state/snapshots/snapshot.json \
+  --schema skills/webapp-debug/assets/google-sheets-schema.json \
+  --output .webapp-debug/state/sync/scenario-sync-plan.json
 ```
 
 ## 12. Release readiness

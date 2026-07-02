@@ -27,9 +27,11 @@ Phase 6C以降の長期計画とsubagent orchestration方針は、`docs/MASTER_I
 - `scripts/discover_cakephp_inventory.py` によるCakePHP静的Inventory JSON生成
 - `scripts/plan_inventory_sync.py` によるInventory sync plan JSON生成。Sheets writeは行わない
 - `scripts/apply_inventory_sync.py` によるInventory sync planのGoogle Sheets適用。実行時はSpreadsheet IDの完全一致確認、cooperative lock、WAL、read-backを要求する
+- `scripts/plan_scenario_sync.py` によるScenario sync plan JSON生成。Sheets writeは行わない
 
 未実装:
 
+- Scenario sync planのGoogle Sheets適用
 - Playwright Scenario生成器／runner orchestration
 - ブラウザ実行を伴う動的discovery
 - Drive APIによる共有、削除、権限設定
@@ -109,6 +111,7 @@ python scripts/export_sheets_snapshot.py --help
 python scripts/discover_cakephp_inventory.py --help
 python scripts/plan_inventory_sync.py --help
 python scripts/apply_inventory_sync.py --help
+python scripts/plan_scenario_sync.py --help
 python scripts/release_check.py --version 0.2.0
 ```
 
@@ -134,6 +137,7 @@ python scripts/export_sheets_snapshot.py --help
 python scripts/discover_cakephp_inventory.py --help
 python scripts/plan_inventory_sync.py --help
 python scripts/apply_inventory_sync.py --help
+python scripts/plan_scenario_sync.py --help
 ```
 
 CIではGoogle credential env、実Spreadsheet ID、Drive API、DB、Playwright、CakePHP parserを設定または実行しません。`tests/integration` はopt-in env未設定によりskipされることを正常として確認します。
@@ -194,6 +198,18 @@ python scripts/apply_inventory_sync.py \
   --plan .webapp-debug/state/sync/inventory-sync-plan.json \
   --confirm-spreadsheet-id <spreadsheet-id> \
   --wal .webapp-debug/state/wal/inventory-apply.jsonl
+```
+
+## Scenario sync plan
+
+Inventory/Scenario snapshotからFeature／Story／Scenarioのローカル同期計画を生成できます。この段階ではGoogle Sheetsへ書き込みません。
+
+```bash
+python scripts/plan_scenario_sync.py \
+  --discovery-json .webapp-debug/state/discovery/inventory.json \
+  --snapshot-json .webapp-debug/state/snapshots/snapshot.json \
+  --schema skills/webapp-debug/assets/google-sheets-schema.json \
+  --output .webapp-debug/state/sync/scenario-sync-plan.json
 ```
 
 ## v0.2.0 release readiness
