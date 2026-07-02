@@ -18,6 +18,7 @@ from webapp_debug_skill.cli import CliResult, Issue, emit_result
 from webapp_debug_skill.errors import (
     EXIT_ARGUMENT_OR_SCHEMA,
     EXIT_EXTERNAL_FAILURE,
+    EXIT_LOCK_CONFLICT,
     EXIT_OK,
     EXIT_POLICY_BLOCKED,
     EXIT_UNEXPECTED,
@@ -43,11 +44,19 @@ from webapp_debug_skill.redaction import (
 )
 from webapp_debug_skill.risk import RiskError, normalize_risk_value
 from webapp_debug_skill.sheets_init import load_canonical_schema
+from webapp_debug_skill.sheets_client import (
+    AppendRows,
+    SheetsBackend,
+    SheetsBackendError,
+    UpdateRowValues,
+    validate_batch,
+)
 from webapp_debug_skill.status_model import (
     InventoryStatus,
     StatusModelError,
     normalize_inventory_status,
 )
+from webapp_debug_skill.wal import AppendOnlyWal, WalError
 
 PLAN_SCHEMA_VERSION = 1
 DEFAULT_MAX_OPERATIONS = 10_000
@@ -101,6 +110,9 @@ RETIRE_EXCLUDED_STATUSES = {
     InventoryStatus.MERGED,
 }
 DISCOVERY_MANAGED_SOURCES = ("cakephp_", "cakephp")
+ROW_NUMBER_KEY = "_row_number"
+INVENTORY_TAB = "Inventory"
+INVENTORY_APPLY_OPERATION = "inventory.apply"
 
 
 class InventorySyncError(RuntimeError):
@@ -127,6 +139,18 @@ class InventorySyncDependencies:
     """Injectable dependencies for CLI tests."""
 
     clock: Callable[[], datetime] = lambda: datetime.now(UTC)
+
+
+@dataclass(frozen=True)
+class InventoryApplyResult:
+    """Result for fake/unit Inventory apply execution."""
+
+    outcome: str
+    applied_mutation_count: int
+    wal_pending_written: bool
+    wal_acknowledged: bool
+    read_back_verified: bool
+    operation_count: int
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -267,6 +291,7 @@ def build_sync_plan(
     discovery_rows = [sanitize_row(row, redaction_counts) for row in discovery_rows]
     snapshot_rows = [sanitize_row(row, redaction_counts) for row in snapshot_rows]
     discovery_gaps = [sanitize_row(gap, redaction_counts) for gap in discovery_gaps]
+    snapshot_fingerprint = inventory_apply_fingerprint(headers, snapshot_rows)
     conflicts: list[dict[str, Any]] = []
     warnings: list[dict[str, Any]] = []
     operations: list[dict[str, Any]] = []
@@ -325,12 +350,25 @@ def build_sync_plan(
             continue
         snapshot_index = discovery_to_snapshot.get(discovery_index)
         if snapshot_index is None:
-            operations.append(append_operation(row, headers))
+            operations.append(
+                append_operation(
+                    row,
+                    headers,
+                    snapshot_row_count=len(snapshot_rows),
+                    snapshot_fingerprint=snapshot_fingerprint,
+                )
+            )
             continue
         if snapshot_index in conflicted_snapshots:
             continue
         existing = snapshot_rows[snapshot_index]
-        planned, noop = update_or_noop_operation(existing, row, headers)
+        planned, noop = update_or_noop_operation(
+            existing,
+            row,
+            headers,
+            snapshot_index=snapshot_index,
+            snapshot_fingerprint=snapshot_fingerprint,
+        )
         if noop:
             noop_count += 1
         elif isinstance(planned, dict) and "operation" in planned:
@@ -343,7 +381,13 @@ def build_sync_plan(
         if snapshot_index in matched_snapshots or snapshot_index in conflicted_snapshots:
             continue
         if allow_retire_missing and can_retire(row):
-            operations.append(retire_operation(row))
+            operations.append(
+                retire_operation(
+                    row,
+                    snapshot_index=snapshot_index,
+                    snapshot_fingerprint=snapshot_fingerprint,
+                )
+            )
         elif is_managed_source(row):
             warnings.append(
                 {
@@ -357,7 +401,14 @@ def build_sync_plan(
         if not any(same_gap(gap, row) for row in discovery_rows):
             priority, indexes, _match_key = match_existing_rows(gap, snapshot_rows)
             if not indexes and priority is None:
-                operations.append(append_gap_operation(gap, headers))
+                operations.append(
+                    append_gap_operation(
+                        gap,
+                        headers,
+                        snapshot_row_count=len(snapshot_rows),
+                        snapshot_fingerprint=snapshot_fingerprint,
+                    )
+                )
 
     summary = summarize(operations, conflicts, noop_count, redaction_counts)
     return {
@@ -365,9 +416,7 @@ def build_sync_plan(
         "source": {
             "kind": "inventory_sync_plan",
             "discovery_fingerprint": fingerprint_payload(discovery_payload),
-            "snapshot_fingerprint": fingerprint_payload(
-                extract_snapshot_inventory(snapshot_payload)
-            ),
+            "snapshot_fingerprint": snapshot_fingerprint,
             "schema_version": schema_version,
             "generated_at": generated_at,
         },
@@ -504,6 +553,7 @@ def alias_columns() -> set[str]:
     """Return accepted non-canonical aliases used by local discovery output."""
 
     return {
+        ROW_NUMBER_KEY,
         "source_key",
         "feature_name",
         "actor",
@@ -514,6 +564,60 @@ def alias_columns() -> set[str]:
         "confidence",
         "status",
     }
+
+
+def snapshot_row_number(row: Mapping[str, Any], index: int) -> int:
+    """Return the 1-based physical sheet row number for an Inventory data row."""
+
+    value = row.get(ROW_NUMBER_KEY)
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 2:
+        return value
+    if isinstance(value, str) and value.isdecimal() and int(value) >= 2:
+        return int(value)
+    return index + 2
+
+
+def row_coordinate(row: Mapping[str, Any], index: int) -> dict[str, Any]:
+    """Return a safe row coordinate for an existing Inventory row."""
+
+    return {
+        "tab": INVENTORY_TAB,
+        "data_index": index,
+        "row_number": snapshot_row_number(row, index),
+    }
+
+
+def append_coordinate(snapshot_row_count: int) -> dict[str, Any]:
+    """Return a safe append coordinate guarded by snapshot row count."""
+
+    return {
+        "tab": INVENTORY_TAB,
+        "mode": "append",
+        "expected_after_data_rows": snapshot_row_count,
+    }
+
+
+def inventory_apply_fingerprint(
+    headers: Sequence[str],
+    rows: Sequence[Mapping[str, Any]],
+) -> str:
+    """Fingerprint row values with coordinates and canonical Inventory headers."""
+
+    payload = {
+        "headers": list(headers),
+        "rows": [
+            {
+                "row_coordinate": row_coordinate(row, index),
+                "values": {
+                    header: render_cell_value(row.get(header, ""))
+                    for header in headers
+                    if header in row
+                },
+            }
+            for index, row in enumerate(rows)
+        ],
+    }
+    return fingerprint_payload(payload)
 
 
 def duplicate_conflicts(rows: Sequence[Mapping[str, Any]], source: str) -> list[dict[str, Any]]:
@@ -663,7 +767,13 @@ def conflict_snapshot_indexes(conflicts: Sequence[Mapping[str, Any]]) -> set[int
     return indexes
 
 
-def append_operation(row: Mapping[str, Any], headers: Sequence[str]) -> dict[str, Any]:
+def append_operation(
+    row: Mapping[str, Any],
+    headers: Sequence[str],
+    *,
+    snapshot_row_count: int,
+    snapshot_fingerprint: str,
+) -> dict[str, Any]:
     """Build APPEND operation."""
 
     operation = "APPEND_DISCOVERY_GAP" if row_status(row) == "DISCOVERY_GAP" else "APPEND_INVENTORY"
@@ -673,12 +783,24 @@ def append_operation(row: Mapping[str, Any], headers: Sequence[str]) -> dict[str
         "operation": operation,
         "target_tab": "Inventory",
         "match_key": stable_source_fingerprint(row) or row_value(row, "inventory_id"),
+        "expected_snapshot_fingerprint": snapshot_fingerprint,
+        "row_coordinate": append_coordinate(snapshot_row_count),
+        "expected_absent": {
+            "inventory_id": row_value(row, "inventory_id"),
+            "source_fingerprint": stable_source_fingerprint(row),
+        },
         "row": canonical,
         "reason": "NEW_DISCOVERY",
     }
 
 
-def append_gap_operation(row: Mapping[str, Any], headers: Sequence[str]) -> dict[str, Any]:
+def append_gap_operation(
+    row: Mapping[str, Any],
+    headers: Sequence[str],
+    *,
+    snapshot_row_count: int,
+    snapshot_fingerprint: str,
+) -> dict[str, Any]:
     """Build gap append operation."""
 
     canonical = canonical_row(row, headers)
@@ -688,6 +810,12 @@ def append_gap_operation(row: Mapping[str, Any], headers: Sequence[str]) -> dict
         "operation": operation,
         "target_tab": "Inventory",
         "match_key": stable_source_fingerprint(row) or row_value(row, "inventory_id"),
+        "expected_snapshot_fingerprint": snapshot_fingerprint,
+        "row_coordinate": append_coordinate(snapshot_row_count),
+        "expected_absent": {
+            "inventory_id": row_value(row, "inventory_id"),
+            "source_fingerprint": stable_source_fingerprint(row),
+        },
         "row": canonical,
         "reason": "NEW_DISCOVERY_GAP",
     }
@@ -697,6 +825,9 @@ def update_or_noop_operation(
     existing: Mapping[str, Any],
     discovery: Mapping[str, Any],
     headers: Sequence[str],
+    *,
+    snapshot_index: int,
+    snapshot_fingerprint: str,
 ) -> tuple[dict[str, Any] | dict[str, Any], bool] | tuple[None, bool]:
     """Build update, conflict, or noop decision."""
 
@@ -728,6 +859,9 @@ def update_or_noop_operation(
             "operation": operation,
             "target_tab": "Inventory",
             "match_key": row_value(existing, "inventory_id"),
+            "expected_snapshot_fingerprint": snapshot_fingerprint,
+            "row_coordinate": row_coordinate(existing, snapshot_index),
+            "expected_old_values": expected_old_values(existing, changed),
             "inventory_id": row_value(existing, "inventory_id"),
             "fields": changed,
             "reason": "DISCOVERY_CHANGED",
@@ -763,7 +897,39 @@ def changed_fields(
     return changes
 
 
-def retire_operation(row: Mapping[str, Any]) -> dict[str, Any]:
+def render_cell_value(value: Any) -> str:
+    """Render one JSON-compatible value as a plain spreadsheet cell string."""
+
+    if value is None:
+        return ""
+    if isinstance(value, list | tuple):
+        return ",".join(safe_text(str(item)) for item in value)
+    if isinstance(value, Mapping):
+        return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return safe_text(str(value))
+
+
+def expected_old_values(
+    existing: Mapping[str, Any],
+    changed: Mapping[str, Any],
+) -> dict[str, str]:
+    """Return old values that must still match before applying an update."""
+
+    expected: dict[str, str] = {
+        "inventory_id": render_cell_value(row_value(existing, "inventory_id")),
+        "source_fingerprint": render_cell_value(stable_source_fingerprint(existing)),
+    }
+    for field in sorted(changed):
+        expected[field] = render_cell_value(existing.get(field, ""))
+    return expected
+
+
+def retire_operation(
+    row: Mapping[str, Any],
+    *,
+    snapshot_index: int,
+    snapshot_fingerprint: str,
+) -> dict[str, Any]:
     """Build retire update operation."""
 
     fields = {"discovery_status": "RETIRED"}
@@ -774,6 +940,9 @@ def retire_operation(row: Mapping[str, Any]) -> dict[str, Any]:
         "operation": operation,
         "target_tab": "Inventory",
         "match_key": row_value(row, "inventory_id"),
+        "expected_snapshot_fingerprint": snapshot_fingerprint,
+        "row_coordinate": row_coordinate(row, snapshot_index),
+        "expected_old_values": expected_old_values(row, fields),
         "inventory_id": row_value(row, "inventory_id"),
         "fields": fields,
         "reason": "MISSING_FROM_DISCOVERY",
@@ -881,6 +1050,511 @@ def summarize(
         "redaction_count": sum(redaction_counts.values()),
         "redactions": dict(sorted(redaction_counts.items())),
     }
+
+
+def apply_inventory_sync_plan(
+    plan: Mapping[str, Any],
+    fresh_snapshot_payload: Mapping[str, Any],
+    *,
+    headers: Sequence[str],
+    backend: SheetsBackend,
+    wal: AppendOnlyWal,
+) -> InventoryApplyResult:
+    """Apply a conflict-free Inventory sync plan using fake/unit backend contracts."""
+
+    operations = validate_applicable_plan(plan)
+    fresh_rows = extract_snapshot_inventory(fresh_snapshot_payload)
+    ensure_snapshot_fingerprint(plan, headers, fresh_rows)
+    ensure_backend_snapshot_fingerprint(plan, headers, backend)
+    mutations = inventory_apply_mutations(plan, operations, fresh_rows, headers)
+    validate_batch(mutations)
+    if not mutations:
+        return InventoryApplyResult(
+            outcome="NOOP",
+            applied_mutation_count=0,
+            wal_pending_written=False,
+            wal_acknowledged=False,
+            read_back_verified=True,
+            operation_count=0,
+        )
+    pending_payload = inventory_apply_wal_payload(plan, operations)
+    pending = append_inventory_pending(wal, pending_payload)
+    try:
+        backend.apply_batch(mutations)
+    except SheetsBackendError as exc:
+        if not exc.may_have_applied:
+            raise InventorySyncError(
+                "INVENTORY_APPLY_BACKEND_FAILED",
+                "backend",
+                exc.code,
+                exit_code=exc.exit_code,
+            ) from None
+        if verify_inventory_read_back(backend, operations):
+            append_inventory_ack(wal, pending.operation_id, pending_payload)
+            return InventoryApplyResult(
+                outcome="APPLIED_AFTER_AMBIGUOUS",
+                applied_mutation_count=len(mutations),
+                wal_pending_written=True,
+                wal_acknowledged=True,
+                read_back_verified=True,
+                operation_count=len(operations),
+            )
+        raise InventorySyncError(
+            "INVENTORY_APPLY_OUTCOME_UNKNOWN",
+            "backend",
+            "READ_BACK_UNPROVEN",
+            exit_code=EXIT_EXTERNAL_FAILURE,
+        ) from None
+    if not verify_inventory_read_back(backend, operations):
+        raise InventorySyncError(
+            "INVENTORY_APPLY_READ_BACK_MISMATCH",
+            "inventory",
+            "POSTCONDITION_FAILED",
+            exit_code=EXIT_LOCK_CONFLICT,
+        )
+    append_inventory_ack(wal, pending.operation_id, pending_payload)
+    return InventoryApplyResult(
+        outcome="APPLIED",
+        applied_mutation_count=len(mutations),
+        wal_pending_written=True,
+        wal_acknowledged=True,
+        read_back_verified=True,
+        operation_count=len(operations),
+    )
+
+
+def validate_applicable_plan(plan: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    """Return operations if a plan is safe to apply."""
+
+    if plan.get("plan_schema_version") != PLAN_SCHEMA_VERSION:
+        raise InventorySyncError(
+            "INVENTORY_APPLY_PLAN_INVALID",
+            "plan_schema_version",
+            "INVALID",
+            exit_code=EXIT_ARGUMENT_OR_SCHEMA,
+        )
+    conflicts = plan.get("conflicts", [])
+    if isinstance(conflicts, Sequence) and not isinstance(conflicts, str) and len(conflicts) > 0:
+        raise InventorySyncError(
+            "INVENTORY_APPLY_PLAN_CONFLICT",
+            "conflicts",
+            "REVIEW_REQUIRED",
+            exit_code=EXIT_POLICY_BLOCKED,
+        )
+    operations = plan.get("operations", [])
+    if not isinstance(operations, list):
+        raise InventorySyncError(
+            "INVENTORY_APPLY_PLAN_INVALID",
+            "operations",
+            "LIST_REQUIRED",
+            exit_code=EXIT_ARGUMENT_OR_SCHEMA,
+        )
+    safe_operations: list[Mapping[str, Any]] = []
+    for index, operation in enumerate(operations):
+        if not isinstance(operation, Mapping):
+            raise InventorySyncError(
+                "INVENTORY_APPLY_PLAN_INVALID",
+                f"operations.[{index}]",
+                "OBJECT_REQUIRED",
+                exit_code=EXIT_ARGUMENT_OR_SCHEMA,
+            )
+        safe_operations.append(operation)
+    return safe_operations
+
+
+def ensure_snapshot_fingerprint(
+    plan: Mapping[str, Any],
+    headers: Sequence[str],
+    fresh_rows: Sequence[Mapping[str, Any]],
+) -> None:
+    """Ensure the apply input still matches the plan snapshot fingerprint."""
+
+    expected = plan_snapshot_fingerprint(plan)
+    actual = inventory_apply_fingerprint(headers, fresh_rows)
+    if expected != actual:
+        raise InventorySyncError(
+            "INVENTORY_APPLY_STALE_SNAPSHOT",
+            "snapshot",
+            "FINGERPRINT_MISMATCH",
+            exit_code=EXIT_LOCK_CONFLICT,
+        )
+
+
+def ensure_backend_snapshot_fingerprint(
+    plan: Mapping[str, Any],
+    headers: Sequence[str],
+    backend: SheetsBackend,
+) -> None:
+    """Ensure backend rows still match the fresh snapshot before WAL/write."""
+
+    try:
+        state = backend.read_spreadsheet()
+    except SheetsBackendError as exc:
+        raise InventorySyncError(
+            "INVENTORY_APPLY_BACKEND_FAILED",
+            "backend",
+            exc.code,
+            exit_code=exc.exit_code,
+        ) from None
+    backend_rows = state.rows_dict().get(INVENTORY_TAB)
+    if backend_rows is None:
+        raise InventorySyncError(
+            "INVENTORY_APPLY_BACKEND_STATE_INVALID",
+            "Inventory",
+            "TAB_MISSING",
+            exit_code=EXIT_LOCK_CONFLICT,
+        )
+    if plan_snapshot_fingerprint(plan) != inventory_apply_fingerprint(headers, backend_rows):
+        raise InventorySyncError(
+            "INVENTORY_APPLY_STALE_SNAPSHOT",
+            "backend",
+            "FINGERPRINT_MISMATCH",
+            exit_code=EXIT_LOCK_CONFLICT,
+        )
+
+
+def inventory_apply_mutations(
+    plan: Mapping[str, Any],
+    operations: Sequence[Mapping[str, Any]],
+    fresh_rows: Sequence[Mapping[str, Any]],
+    headers: Sequence[str],
+) -> list[AppendRows | UpdateRowValues]:
+    """Translate safe Inventory operations to typed row mutations."""
+
+    mutations: list[AppendRows | UpdateRowValues] = []
+    expected_snapshot = plan_snapshot_fingerprint(plan)
+    for index, operation in enumerate(operations):
+        if operation.get("expected_snapshot_fingerprint") != expected_snapshot:
+            raise InventorySyncError(
+                "INVENTORY_APPLY_PLAN_INVALID",
+                f"operations.[{index}].expected_snapshot_fingerprint",
+                "MISMATCH",
+                exit_code=EXIT_ARGUMENT_OR_SCHEMA,
+            )
+        kind = operation.get("operation")
+        if kind in {"APPEND_INVENTORY", "APPEND_DISCOVERY_GAP"}:
+            ensure_append_absent(operation, fresh_rows, index)
+            row = operation.get("row")
+            if not isinstance(row, Mapping):
+                raise InventorySyncError(
+                    "INVENTORY_APPLY_PLAN_INVALID",
+                    f"operations.[{index}].row",
+                    "OBJECT_REQUIRED",
+                    exit_code=EXIT_ARGUMENT_OR_SCHEMA,
+                )
+            mutations.append(
+                AppendRows(
+                    tab_name=INVENTORY_TAB,
+                    rows=(row_values(row, headers),),
+                )
+            )
+        elif kind in {"UPDATE_INVENTORY_FIELDS", "MARK_INVENTORY_RETIRED"}:
+            data_index = operation_data_index(operation, index)
+            ensure_expected_old_values(operation, fresh_rows, data_index, index)
+            fields = operation.get("fields")
+            if not isinstance(fields, Mapping) or not fields:
+                raise InventorySyncError(
+                    "INVENTORY_APPLY_PLAN_INVALID",
+                    f"operations.[{index}].fields",
+                    "OBJECT_REQUIRED",
+                    exit_code=EXIT_ARGUMENT_OR_SCHEMA,
+                )
+            expected = operation.get("expected_old_values")
+            if not isinstance(expected, Mapping) or not expected:
+                raise InventorySyncError(
+                    "INVENTORY_APPLY_PLAN_INVALID",
+                    f"operations.[{index}].expected_old_values",
+                    "OBJECT_REQUIRED",
+                    exit_code=EXIT_ARGUMENT_OR_SCHEMA,
+                )
+            mutations.append(
+                UpdateRowValues(
+                    tab_name=INVENTORY_TAB,
+                    row_index=data_index,
+                    values=row_values(fields, headers, allow_subset=True),
+                    expected_values=row_values(expected, headers, allow_subset=True),
+                )
+            )
+        else:
+            raise InventorySyncError(
+                "INVENTORY_APPLY_PLAN_INVALID",
+                f"operations.[{index}].operation",
+                "UNSUPPORTED_OPERATION",
+                exit_code=EXIT_ARGUMENT_OR_SCHEMA,
+            )
+    return mutations
+
+
+def ensure_append_absent(
+    operation: Mapping[str, Any],
+    fresh_rows: Sequence[Mapping[str, Any]],
+    index: int,
+) -> None:
+    """Ensure an append operation still targets an absent Inventory identity."""
+
+    coordinate = operation.get("row_coordinate")
+    if not isinstance(coordinate, Mapping) or coordinate.get("mode") != "append":
+        raise InventorySyncError(
+            "INVENTORY_APPLY_PLAN_INVALID",
+            f"operations.[{index}].row_coordinate",
+            "APPEND_COORDINATE_REQUIRED",
+            exit_code=EXIT_ARGUMENT_OR_SCHEMA,
+        )
+    expected_count = coordinate.get("expected_after_data_rows")
+    if not isinstance(expected_count, int) or expected_count != len(fresh_rows):
+        raise InventorySyncError(
+            "INVENTORY_APPLY_STALE_SNAPSHOT",
+            f"operations.[{index}].row_coordinate",
+            "ROW_COUNT_MISMATCH",
+            exit_code=EXIT_LOCK_CONFLICT,
+        )
+    expected_absent = operation.get("expected_absent")
+    if not isinstance(expected_absent, Mapping):
+        raise InventorySyncError(
+            "INVENTORY_APPLY_PLAN_INVALID",
+            f"operations.[{index}].expected_absent",
+            "OBJECT_REQUIRED",
+            exit_code=EXIT_ARGUMENT_OR_SCHEMA,
+        )
+    inventory_id = render_cell_value(expected_absent.get("inventory_id", ""))
+    source_fingerprint = render_cell_value(expected_absent.get("source_fingerprint", ""))
+    for row in fresh_rows:
+        if inventory_id and row_value(row, "inventory_id") == inventory_id:
+            raise InventorySyncError(
+                "INVENTORY_APPLY_STALE_SNAPSHOT",
+                f"operations.[{index}].inventory_id",
+                "ALREADY_EXISTS",
+                exit_code=EXIT_LOCK_CONFLICT,
+            )
+        if source_fingerprint and stable_source_fingerprint(row) == source_fingerprint:
+            raise InventorySyncError(
+                "INVENTORY_APPLY_STALE_SNAPSHOT",
+                f"operations.[{index}].source_fingerprint",
+                "ALREADY_EXISTS",
+                exit_code=EXIT_LOCK_CONFLICT,
+            )
+
+
+def operation_data_index(operation: Mapping[str, Any], index: int) -> int:
+    """Extract a zero-based data row index from an operation coordinate."""
+
+    coordinate = operation.get("row_coordinate")
+    if not isinstance(coordinate, Mapping):
+        raise InventorySyncError(
+            "INVENTORY_APPLY_PLAN_INVALID",
+            f"operations.[{index}].row_coordinate",
+            "OBJECT_REQUIRED",
+            exit_code=EXIT_ARGUMENT_OR_SCHEMA,
+        )
+    data_index = coordinate.get("data_index")
+    if not isinstance(data_index, int) or isinstance(data_index, bool) or data_index < 0:
+        raise InventorySyncError(
+            "INVENTORY_APPLY_PLAN_INVALID",
+            f"operations.[{index}].row_coordinate.data_index",
+            "INVALID",
+            exit_code=EXIT_ARGUMENT_OR_SCHEMA,
+        )
+    return data_index
+
+
+def ensure_expected_old_values(
+    operation: Mapping[str, Any],
+    fresh_rows: Sequence[Mapping[str, Any]],
+    data_index: int,
+    index: int,
+) -> None:
+    """Ensure expected old values still match a fresh snapshot row."""
+
+    if data_index >= len(fresh_rows):
+        raise InventorySyncError(
+            "INVENTORY_APPLY_STALE_SNAPSHOT",
+            f"operations.[{index}].row_coordinate",
+            "ROW_MISSING",
+            exit_code=EXIT_LOCK_CONFLICT,
+        )
+    expected = operation.get("expected_old_values")
+    if not isinstance(expected, Mapping) or not expected:
+        raise InventorySyncError(
+            "INVENTORY_APPLY_PLAN_INVALID",
+            f"operations.[{index}].expected_old_values",
+            "OBJECT_REQUIRED",
+            exit_code=EXIT_ARGUMENT_OR_SCHEMA,
+        )
+    row = fresh_rows[data_index]
+    for column, expected_value in expected.items():
+        if render_cell_value(row.get(str(column), "")) != render_cell_value(expected_value):
+            raise InventorySyncError(
+                "INVENTORY_APPLY_STALE_SNAPSHOT",
+                f"operations.[{index}].expected_old_values.{safe_text(str(column))}",
+                "VALUE_MISMATCH",
+                exit_code=EXIT_LOCK_CONFLICT,
+            )
+
+
+def row_values(
+    values: Mapping[str, Any],
+    headers: Sequence[str],
+    *,
+    allow_subset: bool = False,
+) -> tuple[tuple[str, str], ...]:
+    """Return safe column/value pairs in canonical header order."""
+
+    allowed = set(headers)
+    unknown = sorted(str(key) for key in values if str(key) not in allowed)
+    if unknown:
+        raise InventorySyncError(
+            "INVENTORY_APPLY_PLAN_INVALID",
+            "row",
+            "UNKNOWN_COLUMN",
+            exit_code=EXIT_ARGUMENT_OR_SCHEMA,
+        )
+    return tuple(
+        (header, render_cell_value(values.get(header, "")))
+        for header in headers
+        if header in values
+    )
+
+
+def plan_snapshot_fingerprint(plan: Mapping[str, Any]) -> str:
+    """Return the expected source snapshot fingerprint from a plan."""
+
+    source = plan.get("source")
+    if not isinstance(source, Mapping):
+        raise InventorySyncError(
+            "INVENTORY_APPLY_PLAN_INVALID",
+            "source",
+            "OBJECT_REQUIRED",
+            exit_code=EXIT_ARGUMENT_OR_SCHEMA,
+        )
+    fingerprint = source.get("snapshot_fingerprint")
+    if not isinstance(fingerprint, str) or not fingerprint:
+        raise InventorySyncError(
+            "INVENTORY_APPLY_PLAN_INVALID",
+            "source.snapshot_fingerprint",
+            "INVALID",
+            exit_code=EXIT_ARGUMENT_OR_SCHEMA,
+        )
+    return fingerprint
+
+
+def inventory_apply_wal_payload(
+    plan: Mapping[str, Any],
+    operations: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Return a redaction-safe WAL payload for Inventory apply."""
+
+    operation_ids = []
+    for index, operation in enumerate(operations):
+        operation_id_value = operation.get("operation_id")
+        if not isinstance(operation_id_value, str) or operation_id_value == "":
+            raise InventorySyncError(
+                "INVENTORY_APPLY_PLAN_INVALID",
+                f"operations.[{index}].operation_id",
+                "INVALID",
+                exit_code=EXIT_ARGUMENT_OR_SCHEMA,
+            )
+        operation_ids.append(operation_id_value)
+    payload = {
+        "target_tab": INVENTORY_TAB,
+        "plan_fingerprint": fingerprint_payload(plan),
+        "snapshot_fingerprint": plan_snapshot_fingerprint(plan),
+        "operation_count": len(operations),
+        "operation_ids": operation_ids,
+    }
+    if secret_findings(payload):
+        raise InventorySyncError(
+            "INVENTORY_APPLY_PAYLOAD_UNSAFE",
+            "wal.payload",
+            "SECRET_DETECTED",
+            exit_code=EXIT_POLICY_BLOCKED,
+        )
+    return payload
+
+
+def append_inventory_pending(wal: AppendOnlyWal, payload: dict[str, Any]) -> Any:
+    """Append Inventory apply pending WAL entry safely."""
+
+    try:
+        return wal.append_pending(
+            INVENTORY_APPLY_OPERATION,
+            payload,
+            operation_id="INV-APPLY-" + fingerprint_payload(payload)[7:23].upper(),
+        )
+    except WalError as exc:
+        raise InventorySyncError(
+            "INVENTORY_APPLY_WAL_FAILED",
+            "wal",
+            exc.code,
+            exit_code=EXIT_EXTERNAL_FAILURE,
+        ) from None
+
+
+def append_inventory_ack(
+    wal: AppendOnlyWal,
+    operation_id_value: str,
+    payload: Mapping[str, Any],
+) -> None:
+    """Append Inventory apply ack WAL entry safely."""
+
+    try:
+        wal.append_ack(
+            operation_id_value,
+            {
+                "acknowledged_operation_id": operation_id_value,
+                "plan_fingerprint": payload["plan_fingerprint"],
+                "read_back_verified": True,
+            },
+        )
+    except WalError as exc:
+        raise InventorySyncError(
+            "INVENTORY_APPLY_WAL_FAILED",
+            "wal",
+            exc.code,
+            exit_code=EXIT_EXTERNAL_FAILURE,
+        ) from None
+
+
+def verify_inventory_read_back(
+    backend: SheetsBackend,
+    operations: Sequence[Mapping[str, Any]],
+) -> bool:
+    """Return whether backend rows satisfy all operation postconditions."""
+
+    try:
+        state = backend.read_spreadsheet()
+    except SheetsBackendError:
+        return False
+    rows = state.rows_dict().get(INVENTORY_TAB, [])
+    for operation in operations:
+        kind = operation.get("operation")
+        if kind in {"APPEND_INVENTORY", "APPEND_DISCOVERY_GAP"}:
+            row = operation.get("row")
+            if not isinstance(row, Mapping):
+                return False
+            if not any(row_contains_values(candidate, row) for candidate in rows):
+                return False
+        elif kind in {"UPDATE_INVENTORY_FIELDS", "MARK_INVENTORY_RETIRED"}:
+            coordinate = operation.get("row_coordinate")
+            fields = operation.get("fields")
+            if not isinstance(coordinate, Mapping) or not isinstance(fields, Mapping):
+                return False
+            data_index = coordinate.get("data_index")
+            if not isinstance(data_index, int) or data_index < 0 or data_index >= len(rows):
+                return False
+            if not row_contains_values(rows[data_index], fields):
+                return False
+        else:
+            return False
+    return True
+
+
+def row_contains_values(row: Mapping[str, Any], expected: Mapping[str, Any]) -> bool:
+    """Return whether a row contains expected cell values."""
+
+    for column, expected_value in expected.items():
+        if render_cell_value(row.get(str(column), "")) != render_cell_value(expected_value):
+            return False
+    return True
 
 
 def inventory_headers(schema_path: Path) -> tuple[tuple[str, ...], int]:

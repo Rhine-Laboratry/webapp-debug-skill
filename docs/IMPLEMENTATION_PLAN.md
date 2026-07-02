@@ -1029,7 +1029,9 @@ Phase 6A status: 完了。CakePHP static Inventory discovery、ローカルJSON 
 
 Phase 6B status: 完了。CakePHP discovery JSONとread-only Sheets snapshot JSONから、Inventory同期計画をローカルJSONとして生成する。Sheets write/applyはPhase 6C以降に残す。
 
-Phase 6C以降は未着手。Sync planのGoogle Sheets適用、Playwright Scenario generation、browser exploration、JavaScript parser、CakePHP高精度AST adapter、automatic root cause analysisは後続に残す。
+Phase 6C1 status: 完了。Inventory sync plan apply engineのfake/unit基盤、typed row mutation、snapshot fingerprint／row coordinate／expected old values guard、WAL pending/read-back/ack順序、ambiguous write reconciliation unit testを対象とする。実Google Sheets適用CLIはPhase 6C2以降に残す。
+
+Phase 6C2以降は未着手。Sync planの実Google Sheets適用、Playwright Scenario generation、browser exploration、JavaScript parser、CakePHP高精度AST adapter、automatic root cause analysisは後続に残す。
 
 ## 目的
 

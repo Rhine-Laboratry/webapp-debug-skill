@@ -259,7 +259,7 @@ def parse_tab_rows(
             "ROW_LIMIT_EXCEEDED",
         )
     rows: list[dict[str, str]] = []
-    for raw_row in data_rows:
+    for data_index, raw_row in enumerate(data_rows):
         values = [str(cell) for cell in raw_row]
         if not any(value != "" for value in values):
             continue
@@ -270,6 +270,8 @@ def parse_tab_rows(
         }
         if tab.name == "Inventory" and "status" not in parsed:
             parsed["status"] = parsed.get("discovery_status", "")
+        if tab.name == "Inventory":
+            parsed["_row_number"] = data_index + 2
         rows.append(parsed)
     return ParsedTabRows(rows=rows, warnings=tuple(warnings), unknown_trailing_columns=trailing)
 

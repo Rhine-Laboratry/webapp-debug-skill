@@ -15,6 +15,7 @@ from tests.fakes.google_sheets_service import (
 from webapp_debug_skill.google_sheets_backend import GoogleRetryPolicy, GoogleSheetsBackend
 from webapp_debug_skill.sheets_client import (
     AddHeaders,
+    AppendRows,
     ClearMetadata,
     CreateTab,
     SetMetadata,
@@ -236,6 +237,7 @@ def test_domain_mutation_order_and_unknown_tab_preserved() -> None:
     [
         SetMetadata.from_mapping({"safe": SECRET_MARKER}),
         AddHeaders("Missing", ("Header",)),
+        AppendRows("Features", rows=((("Feature ID", "F-001"),),)),
     ],
 )
 def test_invalid_mutation_or_missing_target_writes_zero(mutation: object) -> None:

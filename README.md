@@ -26,10 +26,11 @@ Phase 6C以降の長期計画とsubagent orchestration方針は、`docs/MASTER_I
 - `scripts/export_sheets_snapshot.py` によるGoogle Sheets read-only snapshot export
 - `scripts/discover_cakephp_inventory.py` によるCakePHP静的Inventory JSON生成
 - `scripts/plan_inventory_sync.py` によるInventory sync plan JSON生成。Sheets writeは行わない
+- Inventory sync plan applyのfake/unit基盤。実Google Sheets適用CLIは含まない
 
 未実装:
 
-- sync planのGoogle Sheets適用
+- sync planの実Google Sheets適用
 - Playwright Scenario生成器／runner orchestration
 - ブラウザ実行を伴う動的discovery
 - Drive APIによる共有、削除、権限設定

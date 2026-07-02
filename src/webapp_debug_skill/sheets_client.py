@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 
 from webapp_debug_skill.errors import EXIT_ARGUMENT_OR_SCHEMA, EXIT_EXTERNAL_FAILURE
 from webapp_debug_skill.redaction import secret_findings
@@ -44,11 +44,30 @@ class SheetsBatchInvalidError(SheetsBackendError):
 
 
 @dataclass(frozen=True)
+class SheetRow:
+    """A tab row snapshot represented without backend SDK types."""
+
+    values: tuple[tuple[str, str], ...] = ()
+
+    @classmethod
+    def from_mapping(cls, values: Mapping[str, Any]) -> "SheetRow":
+        """Build a row snapshot from a mapping using defensive string copies."""
+
+        return cls(tuple((str(key), str(value)) for key, value in values.items()))
+
+    def values_dict(self) -> dict[str, str]:
+        """Return a mutable row value copy."""
+
+        return dict(self.values)
+
+
+@dataclass(frozen=True)
 class SheetTab:
-    """A tab snapshot with header names only for Phase 3B."""
+    """A tab snapshot with headers and optional row data."""
 
     name: str
     headers: tuple[str, ...] = ()
+    rows: tuple[SheetRow, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -66,14 +85,20 @@ class SpreadsheetState:
         *,
         metadata: Mapping[str, str] | None = None,
         tabs: Mapping[str, Sequence[str]] | None = None,
+        tab_rows: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
     ) -> "SpreadsheetState":
         """Build a state snapshot from mappings using defensive copies."""
 
         metadata_items = tuple(
             sorted((str(key), str(value)) for key, value in (metadata or {}).items())
         )
+        rows_by_tab = tab_rows or {}
         tab_items = tuple(
-            SheetTab(str(name), tuple(str(header) for header in headers))
+            SheetTab(
+                str(name),
+                tuple(str(header) for header in headers),
+                tuple(SheetRow.from_mapping(row) for row in rows_by_tab.get(name, ())),
+            )
             for name, headers in sorted((tabs or {}).items())
         )
         return cls(spreadsheet_id=str(spreadsheet_id), metadata=metadata_items, tabs=tab_items)
@@ -87,6 +112,11 @@ class SpreadsheetState:
         """Return a mutable copy of tab headers."""
 
         return {tab.name: list(tab.headers) for tab in self.tabs}
+
+    def rows_dict(self) -> dict[str, list[dict[str, str]]]:
+        """Return mutable row copies keyed by tab name."""
+
+        return {tab.name: [row.values_dict() for row in tab.rows] for tab in self.tabs}
 
 
 @dataclass(frozen=True)
@@ -145,7 +175,25 @@ class AddHeaders(SheetsMutation):
     headers: tuple[str, ...]
 
 
-Mutation = SetMetadata | ClearMetadata | CreateTab | AddHeaders
+@dataclass(frozen=True)
+class AppendRows(SheetsMutation):
+    """Append rows to a tab using column/value pairs as plain strings."""
+
+    tab_name: str
+    rows: tuple[tuple[tuple[str, str], ...], ...]
+
+
+@dataclass(frozen=True)
+class UpdateRowValues(SheetsMutation):
+    """Update one zero-based data row after expected-value checks."""
+
+    tab_name: str
+    row_index: int
+    values: tuple[tuple[str, str], ...]
+    expected_values: tuple[tuple[str, str], ...]
+
+
+Mutation = SetMetadata | ClearMetadata | CreateTab | AddHeaders | AppendRows | UpdateRowValues
 
 
 class SheetsBackend(Protocol):
@@ -181,6 +229,28 @@ def validate_plain_string(path: str, value: str) -> None:
         raise SheetsBatchInvalidError(path, findings[0][1])
 
 
+def validate_column_values(
+    path: str,
+    values: Sequence[tuple[str, str]],
+    *,
+    allow_empty: bool = False,
+) -> None:
+    """Validate column/value pairs intended for row mutation."""
+
+    if not values and not allow_empty:
+        raise SheetsBatchInvalidError(path, "EMPTY")
+    seen: set[str] = set()
+    for index, pair in enumerate(values):
+        if not isinstance(pair, tuple) or len(pair) != 2:
+            raise SheetsBatchInvalidError(f"{path}.[{index}]", "COLUMN_VALUE_PAIR_REQUIRED")
+        column, value = pair
+        validate_plain_string(f"{path}.[{index}].column", column)
+        validate_plain_string(f"{path}.[{index}].value", value)
+        if column in seen:
+            raise SheetsBatchInvalidError(f"{path}.[{index}].column", "DUPLICATE_COLUMN")
+        seen.add(column)
+
+
 def validate_mutation(mutation: Mutation, index: int) -> None:
     """Validate a single mutation without exposing payload values."""
 
@@ -206,6 +276,22 @@ def validate_mutation(mutation: Mutation, index: int) -> None:
             raise SheetsBatchInvalidError(f"{prefix}.headers", "EMPTY")
         for header in mutation.headers:
             validate_plain_string(f"{prefix}.headers", header)
+    elif isinstance(mutation, AppendRows):
+        validate_plain_string(f"{prefix}.tab_name", mutation.tab_name)
+        if not mutation.rows:
+            raise SheetsBatchInvalidError(f"{prefix}.rows", "EMPTY")
+        for row_index, row in enumerate(mutation.rows):
+            validate_column_values(f"{prefix}.rows.[{row_index}]", row)
+    elif isinstance(mutation, UpdateRowValues):
+        validate_plain_string(f"{prefix}.tab_name", mutation.tab_name)
+        if (
+            not isinstance(mutation.row_index, int)
+            or isinstance(mutation.row_index, bool)
+            or mutation.row_index < 0
+        ):
+            raise SheetsBatchInvalidError(f"{prefix}.row_index", "INVALID_ROW_INDEX")
+        validate_column_values(f"{prefix}.values", mutation.values)
+        validate_column_values(f"{prefix}.expected_values", mutation.expected_values)
     else:
         raise SheetsBatchInvalidError(prefix, "UNKNOWN_MUTATION")
 

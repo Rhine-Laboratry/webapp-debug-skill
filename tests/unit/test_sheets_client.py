@@ -8,11 +8,13 @@ import pytest
 from tests.fakes.sheets_backend import FakeSheetsBackend
 from webapp_debug_skill.sheets_client import (
     AddHeaders,
+    AppendRows,
     ClearMetadata,
     CreateTab,
     SetMetadata,
     SheetsBackendError,
     SheetsBatchInvalidError,
+    UpdateRowValues,
 )
 
 
@@ -188,3 +190,101 @@ def test_create_spreadsheet_fake_only_contract() -> None:
     assert state.tabs_dict() == {}
     assert backend.create_count == 1
     assert json.dumps(state.metadata_dict()) == "{}"
+
+
+def test_row_append_update_readback_and_unknown_column_preservation() -> None:
+    backend = FakeSheetsBackend(
+        tabs={"Inventory": ["inventory_id", "risk", "discovery_status", "notes"]},
+        rows={
+            "Inventory": [
+                {
+                    "inventory_id": "INV-001",
+                    "risk": "LOW",
+                    "discovery_status": "DISCOVERED",
+                    "notes": "keep",
+                    "human_extra": "preserve",
+                }
+            ]
+        },
+    )
+
+    backend.apply_batch(
+        [
+            AppendRows(
+                "Inventory",
+                rows=((("inventory_id", "INV-002"), ("risk", "HIGH")),),
+            ),
+            UpdateRowValues(
+                "Inventory",
+                row_index=0,
+                values=(("risk", "MEDIUM"),),
+                expected_values=(("inventory_id", "INV-001"), ("risk", "LOW")),
+            ),
+        ]
+    )
+
+    rows = backend.read_spreadsheet().rows_dict()["Inventory"]
+    assert rows[0]["risk"] == "MEDIUM"
+    assert rows[0]["notes"] == "keep"
+    assert rows[0]["human_extra"] == "preserve"
+    assert rows[1]["inventory_id"] == "INV-002"
+    assert backend.write_count == 1
+
+
+def test_row_mutation_expected_mismatch_or_unknown_column_is_atomic() -> None:
+    backend = FakeSheetsBackend(
+        tabs={"Inventory": ["inventory_id", "risk"]},
+        rows={"Inventory": [{"inventory_id": "INV-001", "risk": "LOW"}]},
+    )
+
+    with pytest.raises(SheetsBatchInvalidError) as mismatch_exc:
+        backend.apply_batch(
+            [
+                UpdateRowValues(
+                    "Inventory",
+                    row_index=0,
+                    values=(("risk", "HIGH"),),
+                    expected_values=(("risk", "MEDIUM"),),
+                )
+            ]
+        )
+    with pytest.raises(SheetsBatchInvalidError) as unknown_exc:
+        backend.apply_batch(
+            [
+                AppendRows(
+                    "Inventory",
+                    rows=((("inventory_id", "INV-002"), ("unknown", "bad")),),
+                )
+            ]
+        )
+
+    assert mismatch_exc.value.reason == "EXPECTED_VALUE_MISMATCH"
+    assert unknown_exc.value.reason == "UNKNOWN_COLUMN"
+    assert backend.read_spreadsheet().rows_dict()["Inventory"] == [
+        {"inventory_id": "INV-001", "risk": "LOW"}
+    ]
+    assert backend.write_count == 0
+
+
+def test_row_mutation_ambiguous_failure_keeps_applied_state() -> None:
+    backend = FakeSheetsBackend(
+        tabs={"Inventory": ["inventory_id", "risk"]},
+        rows={"Inventory": [{"inventory_id": "INV-001", "risk": "LOW"}]},
+    )
+    backend.fail_after_apply = True
+
+    with pytest.raises(SheetsBackendError) as exc_info:
+        backend.apply_batch(
+            [
+                UpdateRowValues(
+                    "Inventory",
+                    row_index=0,
+                    values=(("risk", "HIGH"),),
+                    expected_values=(("risk", "LOW"),),
+                )
+            ]
+        )
+
+    assert exc_info.value.may_have_applied is True
+    assert backend.read_spreadsheet().rows_dict()["Inventory"][0]["risk"] == "HIGH"
+    assert backend.write_count == 1

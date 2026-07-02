@@ -18,10 +18,11 @@
 - coverage evaluator、read-only Sheets snapshot export
 - CakePHP static Inventory discovery
 - read-only discovery JSONとsnapshot JSONからのInventory sync plan生成
+- fake/unitのInventory sync plan apply基盤
 
 未実装:
 
-- Inventory sync planのGoogle Sheets適用
+- Inventory sync planの実Google Sheets適用
 - Feature / Story / Scenario生成とScenario Sheets sync
 - Playwright project bootstrap、test generator、runner orchestration
 - Test Runs / Evidence / DefectsのSheets反映
