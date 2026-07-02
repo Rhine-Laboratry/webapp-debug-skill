@@ -2,7 +2,7 @@
 
 Webアプリケーションのコードベースとブラウザ動作から機能を棚卸しし、日本語のFeature／User Story／Scenario、Playwrightテスト、Google Sheets上の進捗・不具合記録を生成するAgent Skillです。
 
-現在の実装は、v0.2 Runtime Hardeningとして安全な初期化、検証基盤、bounded discovery coverage gate、Google Sheetsからのread-only snapshot export、CakePHP静的Inventory discovery、Inventory／Scenario同期計画のローカル生成と明示確認付き適用を追加した状態です。Playwright生成器は後続実装です。
+現在の実装は、v0.2 Runtime Hardeningとして安全な初期化、検証基盤、bounded discovery coverage gate、Google Sheetsからのread-only snapshot export、CakePHP静的Inventory discovery、Inventory／Scenario同期計画のローカル生成と明示確認付き適用、Playwright project skeleton bootstrapを追加した状態です。ScenarioからのPlaywrightテスト生成器は後続実装です。
 
 Phase 6C以降の長期計画とsubagent orchestration方針は、`docs/MASTER_IMPLEMENTATION_PLAN.md`、`docs/ORCHESTRATION_RUNBOOK.md`、`docs/PHASE_ACCEPTANCE_CRITERIA.md` にまとめています。これらは将来計画であり、未実装機能を実装済みと示すものではありません。
 
@@ -29,6 +29,7 @@ Phase 6C以降の長期計画とsubagent orchestration方針は、`docs/MASTER_I
 - `scripts/apply_inventory_sync.py` によるInventory sync planのGoogle Sheets適用。実行時はSpreadsheet IDの完全一致確認、cooperative lock、WAL、read-backを要求する
 - `scripts/plan_scenario_sync.py` によるScenario sync plan JSON生成。Sheets writeは行わない
 - `scripts/apply_scenario_sync.py` によるScenario sync planのGoogle Sheets適用。実行時はSpreadsheet IDの完全一致確認、cooperative lock、WAL、read-backを要求する
+- `scripts/bootstrap_playwright_project.py` によるPlaywright生成先の静的skeleton作成。Playwright、npm、ブラウザは実行しない
 
 未実装:
 
@@ -114,6 +115,7 @@ python scripts/plan_inventory_sync.py --help
 python scripts/apply_inventory_sync.py --help
 python scripts/plan_scenario_sync.py --help
 python scripts/apply_scenario_sync.py --help
+python scripts/bootstrap_playwright_project.py --help
 python scripts/release_check.py --version 0.2.0
 ```
 
@@ -141,6 +143,7 @@ python scripts/plan_inventory_sync.py --help
 python scripts/apply_inventory_sync.py --help
 python scripts/plan_scenario_sync.py --help
 python scripts/apply_scenario_sync.py --help
+python scripts/bootstrap_playwright_project.py --help
 ```
 
 CIではGoogle credential env、実Spreadsheet ID、Drive API、DB、Playwright、CakePHP parserを設定または実行しません。`tests/integration` はopt-in env未設定によりskipされることを正常として確認します。
@@ -231,6 +234,17 @@ python scripts/apply_scenario_sync.py \
   --confirm-spreadsheet-id <spreadsheet-id> \
   --wal .webapp-debug/state/wal/scenario-apply.jsonl
 ```
+
+## Playwright project bootstrap
+
+Playwright生成先のproject skeletonを静的に計画または作成できます。既存の非生成ファイルは上書きせず、生成済みファイルの更新はmanifestとsha256 checksumで所有権を確認します。このCLIはPlaywright、npm、Composer、PHP、DB、ブラウザ、Google APIを実行しません。
+
+```bash
+python scripts/bootstrap_playwright_project.py --dry-run
+python scripts/bootstrap_playwright_project.py
+```
+
+Scenario-to-Playwright test generationとrunner orchestrationは未実装です。
 
 ## v0.2.0 release readiness
 

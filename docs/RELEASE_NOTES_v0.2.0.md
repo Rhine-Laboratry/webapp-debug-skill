@@ -4,9 +4,9 @@ Target tag: `v0.2.0`
 
 ## Positioning
 
-v0.2.0 is a runtime hardening release for the `webapp-debug` Agent Skill. It makes the helper scripts, validation flow, Google Sheets initialization, recovery primitives, coverage gate, CakePHP static discovery, local Inventory sync planning/apply, and CI checks deterministic enough to support later test-generation work.
+v0.2.0 is a runtime hardening release for the `webapp-debug` Agent Skill. It makes the helper scripts, validation flow, Google Sheets initialization, recovery primitives, coverage gate, CakePHP static discovery, local Inventory sync planning/apply, Playwright project skeleton bootstrap, and CI checks deterministic enough to support later test-generation work.
 
-This release implements read-only CakePHP static Inventory discovery, explicit Inventory sync plan application, and local Scenario sync planning/apply. It does not implement dynamic browser exploration, Test Runs/Defects apply, or Playwright Scenario generation.
+This release implements read-only CakePHP static Inventory discovery, explicit Inventory sync plan application, local Scenario sync planning/apply, and a static Playwright project bootstrap helper. It does not implement dynamic browser exploration, Test Runs/Defects apply, or Playwright Scenario generation.
 
 ## Implemented
 
@@ -26,6 +26,7 @@ This release implements read-only CakePHP static Inventory discovery, explicit I
 - Inventory sync plan application to Google Sheets with Spreadsheet ID confirmation, cooperative lock, WAL, and read-back verification.
 - Local Scenario sync planning from Inventory/Scenario snapshot JSON without applying writes.
 - Scenario sync plan application to Google Sheets with Spreadsheet ID confirmation, cooperative lock, WAL, read-back verification, and Inventory mapping updates.
+- Playwright project skeleton bootstrap with dry-run and manifest/checksum ownership checks, without running Playwright, npm, Composer, browser, DB, or Google APIs.
 - GitHub Actions CI workflow.
 - Release checklist and release readiness self-check.
 
@@ -75,6 +76,7 @@ python scripts/plan_inventory_sync.py --help
 python scripts/apply_inventory_sync.py --help
 python scripts/plan_scenario_sync.py --help
 python scripts/apply_scenario_sync.py --help
+python scripts/bootstrap_playwright_project.py --help
 python scripts/release_check.py --version 0.2.0
 python scripts/release_check.py --version 0.2.0 --format json
 ```

@@ -27,6 +27,7 @@ python scripts/plan_inventory_sync.py --help
 python scripts/apply_inventory_sync.py --help
 python scripts/plan_scenario_sync.py --help
 python scripts/apply_scenario_sync.py --help
+python scripts/bootstrap_playwright_project.py --help
 python scripts/release_check.py --version 0.2.0
 python scripts/release_check.py --version 0.2.0 --format json
 ```
@@ -79,6 +80,6 @@ GitHub Release creation is also manual. PyPI and Docker publishing are not suppo
 
 Summarize:
 
-- Added deterministic validators, redaction, WAL, Sheets initialization, cooperative lock, coverage evaluator, read-only snapshot export, CakePHP static Inventory discovery, local Inventory sync planning/apply, local Scenario sync planning/apply, and CI.
+- Added deterministic validators, redaction, WAL, Sheets initialization, cooperative lock, coverage evaluator, read-only snapshot export, CakePHP static Inventory discovery, local Inventory sync planning/apply, local Scenario sync planning/apply, Playwright project skeleton bootstrap, and CI.
 - Clarified opt-in Google integration test boundaries.
 - Repeated that dynamic discovery, Test Runs/Defects Sheets apply, JavaScript parsing, and Playwright generation remain future work.

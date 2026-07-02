@@ -46,6 +46,7 @@ def test_readme_and_install_include_major_cli_names() -> None:
         "scripts/release_check.py",
         "scripts/plan_scenario_sync.py",
         "scripts/apply_scenario_sync.py",
+        "scripts/bootstrap_playwright_project.py",
     ):
         assert script in docs
 

@@ -44,6 +44,7 @@ REQUIRED_SCRIPTS = (
     "scripts/apply_inventory_sync.py",
     "scripts/plan_scenario_sync.py",
     "scripts/apply_scenario_sync.py",
+    "scripts/bootstrap_playwright_project.py",
     "scripts/release_check.py",
 )
 REQUIRED_FILES = (

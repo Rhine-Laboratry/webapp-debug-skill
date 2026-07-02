@@ -169,6 +169,7 @@ python scripts/plan_inventory_sync.py --help
 python scripts/apply_inventory_sync.py --help
 python scripts/plan_scenario_sync.py --help
 python scripts/apply_scenario_sync.py --help
+python scripts/bootstrap_playwright_project.py --help
 python scripts/release_check.py --version 0.2.0
 python scripts/release_check.py --version 0.2.0 --format json
 ```
@@ -255,7 +256,18 @@ python scripts/apply_scenario_sync.py \
   --wal .webapp-debug/state/wal/scenario-apply.jsonl
 ```
 
-## 12. Release readiness
+## 12. Playwright project bootstrap
+
+Playwright生成先のproject skeletonを静的に作成できます。dry-runではlocal artifactも作成しません。通常実行でも既存の非生成ファイルは上書きせず、生成済みファイルの更新はmanifestとchecksumで検証します。Playwright、npm、Composer、PHP、DB、ブラウザ、Google APIは実行しません。
+
+```bash
+python scripts/bootstrap_playwright_project.py --dry-run
+python scripts/bootstrap_playwright_project.py
+```
+
+Scenario-to-Playwright test generationとrunner orchestrationは後続実装です。
+
+## 13. Release readiness
 
 v0.2.0の準備状態は次で確認します。
 
@@ -267,7 +279,7 @@ version sourceは `pyproject.toml` の `project.version` です。`src/webapp_de
 
 release前に `docs/RELEASE_CHECKLIST.md` と `docs/RELEASE_NOTES_v0.2.0.md` を確認してください。
 
-## 13. Opt-in統合テスト
+## 14. Opt-in統合テスト
 
 既定ではskipされます。
 

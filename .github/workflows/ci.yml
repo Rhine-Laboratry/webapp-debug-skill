@@ -89,6 +89,9 @@ jobs:
       - name: Check Scenario apply help
         run: python scripts/apply_scenario_sync.py --help
 
+      - name: Check Playwright bootstrap help
+        run: python scripts/bootstrap_playwright_project.py --help
+
       - name: Check release readiness
         run: python scripts/release_check.py --version 0.2.0
 

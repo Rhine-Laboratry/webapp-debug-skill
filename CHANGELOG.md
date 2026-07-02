@@ -20,6 +20,7 @@ All notable changes to this project are recorded here.
 - Inventory sync plan application to Google Sheets with Spreadsheet ID confirmation, cooperative lock, WAL, and read-back verification.
 - Local Scenario sync planning from Inventory/Scenario snapshot JSON without applying Google Sheets writes.
 - Scenario sync plan application to Google Sheets with Spreadsheet ID confirmation, cooperative lock, WAL, read-back verification, and Inventory mapping updates.
+- Playwright project skeleton bootstrap with dry-run and generated-file manifest/checksum ownership checks, without running Playwright, npm, Composer, browser, DB, or Google APIs.
 - GitHub Actions CI for tests, integration skip confirmation, lint, validators, CLI help, and package checks.
 - Release notes draft and `scripts/release_check.py` readiness self-check for the `v0.2.0` target.
 

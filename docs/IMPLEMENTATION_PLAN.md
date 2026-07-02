@@ -1039,7 +1039,9 @@ Phase 7B status: 完了。Inventory/Scenario snapshotからのローカルScenar
 
 Phase 7C status: 完了。Scenario sync planをGoogle Sheetsへ適用する `scripts/apply_scenario_sync.py`、Spreadsheet ID完全一致確認、cooperative lock、WAL pending/read-back/ack、Inventory mapping更新、fake/unit testを対象とする。
 
-Phase 8A以降は未着手。Playwright Scenario generation、browser exploration、JavaScript parser、CakePHP高精度AST adapter、automatic root cause analysisは後続に残す。
+Phase 8A status: 完了。Playwright project skeleton bootstrap、dry-run、generated manifest/checksum ownership checks、package manager lockfile conflict detection、CLI help、unit test、CI/README/INSTALL/SKILL/release docs更新を対象とする。Playwright、npm、Composer、PHP、DB、ブラウザ、Google APIは実行しない。
+
+Phase 8B以降は未着手。Playwright Scenario generation、browser exploration、JavaScript parser、CakePHP高精度AST adapter、automatic root cause analysisは後続に残す。
 
 ## 目的
 
