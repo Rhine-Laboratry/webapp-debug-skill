@@ -1041,7 +1041,9 @@ Phase 7C status: 完了。Scenario sync planをGoogle Sheetsへ適用する `scr
 
 Phase 8A status: 完了。Playwright project skeleton bootstrap、dry-run、generated manifest/checksum ownership checks、package manager lockfile conflict detection、CLI help、unit test、CI/README/INSTALL/SKILL/release docs更新を対象とする。Playwright、npm、Composer、PHP、DB、ブラウザ、Google APIは実行しない。
 
-Phase 8B以降は未着手。Playwright Scenario generation、browser exploration、JavaScript parser、CakePHP高精度AST adapter、automatic root cause analysisは後続に残す。
+Phase 8B status: 完了。構造化Scenario rows JSONからのstatic Playwright test skeleton生成、BLOCKED status plan、generated manifest/checksum ownership checks、scenario metadata付きmanifest entry、CLI help、unit test、CI/README/INSTALL/SKILL/release docs更新を対象とする。Google Sheets write、DB、Playwright、npm、Composer、PHP、ブラウザ、Google APIは実行しない。
+
+Phase 8C以降は未着手。高度なlocator/page object support、Playwright runner orchestration、browser exploration、JavaScript parser、CakePHP高精度AST adapter、automatic root cause analysisは後続に残す。
 
 ## 目的
 

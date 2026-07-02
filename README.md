@@ -2,7 +2,7 @@
 
 Webアプリケーションのコードベースとブラウザ動作から機能を棚卸しし、日本語のFeature／User Story／Scenario、Playwrightテスト、Google Sheets上の進捗・不具合記録を生成するAgent Skillです。
 
-現在の実装は、v0.2 Runtime Hardeningとして安全な初期化、検証基盤、bounded discovery coverage gate、Google Sheetsからのread-only snapshot export、CakePHP静的Inventory discovery、Inventory／Scenario同期計画のローカル生成と明示確認付き適用、Playwright project skeleton bootstrapを追加した状態です。ScenarioからのPlaywrightテスト生成器は後続実装です。
+現在の実装は、v0.2 Runtime Hardeningとして安全な初期化、検証基盤、bounded discovery coverage gate、Google Sheetsからのread-only snapshot export、CakePHP静的Inventory discovery、Inventory／Scenario同期計画のローカル生成と明示確認付き適用、Playwright project skeleton bootstrap、構造化Scenarioからの静的Playwright test skeleton生成を追加した状態です。Playwright runner orchestrationは後続実装です。
 
 Phase 6C以降の長期計画とsubagent orchestration方針は、`docs/MASTER_IMPLEMENTATION_PLAN.md`、`docs/ORCHESTRATION_RUNBOOK.md`、`docs/PHASE_ACCEPTANCE_CRITERIA.md` にまとめています。これらは将来計画であり、未実装機能を実装済みと示すものではありません。
 
@@ -30,10 +30,12 @@ Phase 6C以降の長期計画とsubagent orchestration方針は、`docs/MASTER_I
 - `scripts/plan_scenario_sync.py` によるScenario sync plan JSON生成。Sheets writeは行わない
 - `scripts/apply_scenario_sync.py` によるScenario sync planのGoogle Sheets適用。実行時はSpreadsheet IDの完全一致確認、cooperative lock、WAL、read-backを要求する
 - `scripts/bootstrap_playwright_project.py` によるPlaywright生成先の静的skeleton作成。Playwright、npm、ブラウザは実行しない
+- `scripts/generate_playwright_tests.py` による構造化Scenarioからの静的Playwright test skeleton生成。Google Sheets write、DB、Playwright、npm、ブラウザは実行しない
 
 未実装:
 
-- Playwright Scenario生成器／runner orchestration
+- Playwright runner orchestration
+- 高度なlocator strategy／page object support
 - Test Runs／DefectsのSheets適用
 - ブラウザ実行を伴う動的discovery
 - Drive APIによる共有、削除、権限設定
@@ -116,6 +118,7 @@ python scripts/apply_inventory_sync.py --help
 python scripts/plan_scenario_sync.py --help
 python scripts/apply_scenario_sync.py --help
 python scripts/bootstrap_playwright_project.py --help
+python scripts/generate_playwright_tests.py --help
 python scripts/release_check.py --version 0.2.0
 ```
 
@@ -144,6 +147,7 @@ python scripts/apply_inventory_sync.py --help
 python scripts/plan_scenario_sync.py --help
 python scripts/apply_scenario_sync.py --help
 python scripts/bootstrap_playwright_project.py --help
+python scripts/generate_playwright_tests.py --help
 ```
 
 CIではGoogle credential env、実Spreadsheet ID、Drive API、DB、Playwright、CakePHP parserを設定または実行しません。`tests/integration` はopt-in env未設定によりskipされることを正常として確認します。
@@ -244,7 +248,18 @@ python scripts/bootstrap_playwright_project.py --dry-run
 python scripts/bootstrap_playwright_project.py
 ```
 
-Scenario-to-Playwright test generationとrunner orchestrationは未実装です。
+構造化Scenarioから静的Playwright test skeletonを生成できます。生成前に `bootstrap_playwright_project.py` のproject skeletonが必要です。unsupported action、DB/seed/mailbox/upload等のruntime safety gateが未実装なScenario、locator source不足のScenarioは、runnable specではなくBLOCKED status planにします。このCLIはGoogle Sheets write、DB、Playwright、npm、Composer、PHP、ブラウザ、Google APIを実行しません。
+
+```bash
+python scripts/generate_playwright_tests.py \
+  --scenario-json .webapp-debug/state/snapshots/scenarios.json \
+  --dry-run
+
+python scripts/generate_playwright_tests.py \
+  --scenario-json .webapp-debug/state/snapshots/scenarios.json
+```
+
+Playwright runner orchestrationと高度なlocator/page object supportは未実装です。
 
 ## v0.2.0 release readiness
 

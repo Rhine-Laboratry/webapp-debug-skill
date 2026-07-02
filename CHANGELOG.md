@@ -21,12 +21,13 @@ All notable changes to this project are recorded here.
 - Local Scenario sync planning from Inventory/Scenario snapshot JSON without applying Google Sheets writes.
 - Scenario sync plan application to Google Sheets with Spreadsheet ID confirmation, cooperative lock, WAL, read-back verification, and Inventory mapping updates.
 - Playwright project skeleton bootstrap with dry-run and generated-file manifest/checksum ownership checks, without running Playwright, npm, Composer, browser, DB, or Google APIs.
+- Static Scenario-to-Playwright test skeleton generation from structured Scenario rows, with BLOCKED status planning for unsupported actions and unsafe runtime data requirements.
 - GitHub Actions CI for tests, integration skip confirmation, lint, validators, CLI help, and package checks.
 - Release notes draft and `scripts/release_check.py` readiness self-check for the `v0.2.0` target.
 
 ### Changed
 
-- README, INSTALL, Skill docs, and implementation plan now distinguish implemented v0.2 hardening helpers and CakePHP static discovery from future dynamic discovery and test generation work.
+- README, INSTALL, Skill docs, and implementation plan now distinguish implemented v0.2 hardening helpers, CakePHP static discovery, and static Playwright skeleton generation from future dynamic discovery and runner work.
 - Google integration tests are documented as opt-in and are not part of default CI.
 - Package versioning is managed by `pyproject.toml`; `src/webapp_debug_skill/__init__.py` mirrors the same `0.2.0` version.
 
@@ -39,7 +40,7 @@ All notable changes to this project are recorded here.
 ### Known Limitations
 
 - Dynamic browser discovery, Test Runs/Defects Sheets apply, and high-precision CakePHP AST adapters are not implemented.
-- JavaScript parsing and Playwright Scenario generation are not implemented.
+- JavaScript parsing and Advanced locator/page object support are not implemented.
 - Playwright runner orchestration is not implemented.
 - Drive API sharing, Spreadsheet deletion, OAuth user flow, and domain-wide delegation are not implemented.
 - Screenshot, video, PDF, and trace image PII redaction are not implemented.

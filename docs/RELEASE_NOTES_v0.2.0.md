@@ -4,9 +4,9 @@ Target tag: `v0.2.0`
 
 ## Positioning
 
-v0.2.0 is a runtime hardening release for the `webapp-debug` Agent Skill. It makes the helper scripts, validation flow, Google Sheets initialization, recovery primitives, coverage gate, CakePHP static discovery, local Inventory sync planning/apply, Playwright project skeleton bootstrap, and CI checks deterministic enough to support later test-generation work.
+v0.2.0 is a runtime hardening release for the `webapp-debug` Agent Skill. It makes the helper scripts, validation flow, Google Sheets initialization, recovery primitives, coverage gate, CakePHP static discovery, local Inventory sync planning/apply, Playwright project skeleton bootstrap, static Scenario-to-Playwright skeleton generation, and CI checks deterministic enough to support later runner work.
 
-This release implements read-only CakePHP static Inventory discovery, explicit Inventory sync plan application, local Scenario sync planning/apply, and a static Playwright project bootstrap helper. It does not implement dynamic browser exploration, Test Runs/Defects apply, or Playwright Scenario generation.
+This release implements read-only CakePHP static Inventory discovery, explicit Inventory sync plan application, local Scenario sync planning/apply, a static Playwright project bootstrap helper, and static Playwright test skeleton generation from structured Scenarios. It does not implement dynamic browser exploration, Test Runs/Defects apply, advanced locator/page object support, or Playwright runner orchestration.
 
 ## Implemented
 
@@ -27,6 +27,7 @@ This release implements read-only CakePHP static Inventory discovery, explicit I
 - Local Scenario sync planning from Inventory/Scenario snapshot JSON without applying writes.
 - Scenario sync plan application to Google Sheets with Spreadsheet ID confirmation, cooperative lock, WAL, read-back verification, and Inventory mapping updates.
 - Playwright project skeleton bootstrap with dry-run and manifest/checksum ownership checks, without running Playwright, npm, Composer, browser, DB, or Google APIs.
+- Static Scenario-to-Playwright test skeleton generation from structured Scenario rows, with BLOCKED status planning for unsupported actions and unsafe runtime data requirements.
 - GitHub Actions CI workflow.
 - Release checklist and release readiness self-check.
 
@@ -35,7 +36,7 @@ This release implements read-only CakePHP static Inventory discovery, explicit I
 - Dynamic browser discovery and Test Runs/Defects Sheets apply are not implemented.
 - High-precision CakePHP AST adapters are not implemented.
 - JavaScript discovery is not implemented.
-- Playwright scenario generation is not implemented.
+- Advanced locator/page object support is not implemented.
 - Playwright runner orchestration is not implemented.
 - Automatic root cause analysis is not implemented.
 - Drive API sharing, Spreadsheet deletion, OAuth user flow, and domain-wide delegation are not implemented.
@@ -77,6 +78,7 @@ python scripts/apply_inventory_sync.py --help
 python scripts/plan_scenario_sync.py --help
 python scripts/apply_scenario_sync.py --help
 python scripts/bootstrap_playwright_project.py --help
+python scripts/generate_playwright_tests.py --help
 python scripts/release_check.py --version 0.2.0
 python scripts/release_check.py --version 0.2.0 --format json
 ```
@@ -85,6 +87,6 @@ python scripts/release_check.py --version 0.2.0 --format json
 
 ## Known Limitations
 
-- Dynamic discovery, Test Runs/Defects Sheets apply, JavaScript discovery, and Scenario generation remain future work.
+- Dynamic discovery, Test Runs/Defects Sheets apply, JavaScript discovery, advanced locator/page object support, and runner orchestration remain future work.
 - CI proves the deterministic helper scripts and safety boundaries; it does not run browser E2E or real Google Sheets integration.
 - Release automation, PyPI publishing, Docker publishing, and GitHub Release creation are not implemented.

@@ -67,7 +67,7 @@ def make_release_root(tmp_path: Path, *, version: str = "0.2.0") -> Path:
 
 - Dynamic browser discovery and Test Runs/Defects Sheets apply are not implemented.
 - High-precision CakePHP AST adapters are not implemented.
-- JavaScript parsing and Playwright Scenario generation are not implemented.
+- JavaScript parsing and advanced locator/page object support are not implemented.
 - Playwright runner orchestration is not implemented.
 """,
     )
@@ -83,7 +83,7 @@ Target tag: `v{version}`
 
 Dynamic browser discovery and Test Runs/Defects Sheets apply are not implemented.
 High-precision CakePHP AST adapters are not implemented.
-Playwright scenario generation is not implemented.
+Playwright runner orchestration is not implemented.
 """,
     )
     write(root / ".github/workflows/ci.yml", safe_workflow())

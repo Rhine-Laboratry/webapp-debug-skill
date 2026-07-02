@@ -170,6 +170,7 @@ python scripts/apply_inventory_sync.py --help
 python scripts/plan_scenario_sync.py --help
 python scripts/apply_scenario_sync.py --help
 python scripts/bootstrap_playwright_project.py --help
+python scripts/generate_playwright_tests.py --help
 python scripts/release_check.py --version 0.2.0
 python scripts/release_check.py --version 0.2.0 --format json
 ```
@@ -265,7 +266,18 @@ python scripts/bootstrap_playwright_project.py --dry-run
 python scripts/bootstrap_playwright_project.py
 ```
 
-Scenario-to-Playwright test generationとrunner orchestrationは後続実装です。
+構造化Scenarioから静的Playwright test skeletonを生成できます。生成前に `bootstrap_playwright_project.py` を通常実行し、generated manifestを作成してください。unsupported action、DB/seed/mailbox/upload等のruntime safety gateが未実装なScenario、locator source不足のScenarioはBLOCKED status planにします。Google Sheets write、DB、Playwright、npm、Composer、PHP、ブラウザ、Google APIは実行しません。
+
+```bash
+python scripts/generate_playwright_tests.py \
+  --scenario-json .webapp-debug/state/snapshots/scenarios.json \
+  --dry-run
+
+python scripts/generate_playwright_tests.py \
+  --scenario-json .webapp-debug/state/snapshots/scenarios.json
+```
+
+Playwright runner orchestrationと高度なlocator/page object supportは後続実装です。
 
 ## 13. Release readiness
 

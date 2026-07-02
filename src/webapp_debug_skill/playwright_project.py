@@ -9,7 +9,7 @@ import os
 import stat
 import tempfile
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -64,6 +64,7 @@ class PlannedFile:
     relative_path: str
     content: bytes
     marker_required: bool = True
+    metadata: Mapping[str, Any] = field(default_factory=dict)
 
     @property
     def checksum(self) -> str:
@@ -472,6 +473,7 @@ def build_manifest(
                 "size": item.size,
                 "generated_marker_required": item.marker_required,
             }
+            | ({"metadata": dict(item.metadata)} if item.metadata else {})
             for item in sorted(files, key=lambda value: value.relative_path)
         ],
     }
