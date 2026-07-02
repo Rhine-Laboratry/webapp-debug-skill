@@ -7,6 +7,7 @@ import pytest
 from webapp_debug_skill.cakephp_discovery import (
     CakePHPDiscoveryError,
     cakephp_major_from_constraint,
+    collect_source_files,
     detect_cakephp_version,
     discover_cakephp,
     parse_controller_file,
@@ -143,6 +144,21 @@ def test_discovery_payload_inventory_and_coverage_compatibility() -> None:
     assert [row["inventory_id"] for row in rows] == [
         row["inventory_id"] for row in second_payload["Inventory"]
     ]
+
+
+def test_collect_source_files_rejects_symlinked_sources_outside_root(tmp_path: Path) -> None:
+    root = tmp_path / "app"
+    controller_dir = root / "src/Controller"
+    controller_dir.mkdir(parents=True)
+    (root / "composer.json").write_text('{"require":{"cakephp/cakephp":"^4.0"}}', encoding="utf-8")
+    outside = tmp_path / "outside.php"
+    outside.write_text("<?php class UsersController {}", encoding="utf-8")
+    link = controller_dir / "UsersController.php"
+    link.symlink_to(outside)
+
+    files = collect_source_files(root, include_plugins=False)
+
+    assert link not in files
 
 
 def test_non_cakephp_is_blocked_safely() -> None:

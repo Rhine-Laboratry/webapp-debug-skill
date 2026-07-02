@@ -115,7 +115,7 @@ authentication:
 sheets:
   spreadsheet_id: ""
   create_policy: init-only
-  service_account_credentials_env: GOOGLE_APPLICATION_CREDENTIALS
+  service_account_credentials_env: WEBAPP_DEBUG_GOOGLE_SERVICE_ACCOUNT
   writer: skill-only
   concurrency: single-writer
   lock_ttl_minutes: 120

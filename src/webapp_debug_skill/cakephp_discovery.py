@@ -308,9 +308,21 @@ def collect_source_files(root: Path, *, include_plugins: bool) -> list[Path]:
         )
     for pattern in patterns:
         for path in root.glob(pattern):
-            if path.is_file() and not is_excluded_path(root, path):
+            if is_safe_source_file(root, path) and not is_excluded_path(root, path):
                 candidates.append(path)
     return sorted(set(candidates))
+
+
+def is_safe_source_file(root: Path, path: Path) -> bool:
+    """Return whether a candidate is a regular in-root, non-symlink file."""
+
+    try:
+        if path.is_symlink() or not path.is_file():
+            return False
+        path.resolve(strict=True).relative_to(root.resolve(strict=True))
+    except (OSError, ValueError):
+        return False
+    return True
 
 
 def is_excluded_path(root: Path, path: Path) -> bool:

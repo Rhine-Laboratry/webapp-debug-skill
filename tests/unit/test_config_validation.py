@@ -71,6 +71,10 @@ def test_example_config_init_succeeds_with_json_output() -> None:
     assert result["ok"] is True
     assert result["code"] == "OK"
     assert result["data"]["mode"] == "init"
+    assert (
+        load_example_config()["sheets"]["service_account_credentials_env"]
+        == "WEBAPP_DEBUG_GOOGLE_SERVICE_ACCOUNT"
+    )
 
 
 def test_text_output_for_success_is_redacted() -> None:
