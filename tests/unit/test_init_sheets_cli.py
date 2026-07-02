@@ -3,6 +3,7 @@ from __future__ import annotations
 import itertools
 import json
 import shutil
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -17,7 +18,7 @@ from webapp_debug_skill.google_credentials import (
 from webapp_debug_skill.sheets_bootstrap import BOOTSTRAP_OPERATION, CREATE_OPERATION
 from webapp_debug_skill.sheets_init import INIT_OPERATION
 from webapp_debug_skill.sheets_init_cli import InitSheetsDependencies, main
-from webapp_debug_skill.wal import AppendOnlyWal
+from webapp_debug_skill.wal import AppendOnlyWal, WalError
 
 EXAMPLE_CONFIG = Path("skills/webapp-debug/assets/webapp-debug.config.example.yml")
 SCHEMA = Path("skills/webapp-debug/assets/google-sheets-schema.json")
@@ -62,6 +63,17 @@ def deps(service: FakeGoogleSheetsService) -> InitSheetsDependencies:
         operation_id_factory=lambda: f"op-{next(counter)}",
         clock=lambda: "2026-07-01T00:00:00Z",
     )
+
+
+class AckFailingWal(AppendOnlyWal):
+    """WAL that allows pending writes but rejects ack writes."""
+
+    def append_ack(
+        self,
+        _operation_id: str,
+        _payload: dict[str, object] | None = None,
+    ) -> object:
+        raise WalError("WAL_WRITE_FAILED", "wal", "WRITE_FAILED")
 
 
 def run_cli(
@@ -222,6 +234,57 @@ def test_existing_initializer_execution_and_second_noop(
     assert service.snapshot()["Metadata"][0] == ["key", "value", "updated_at", "notes"]
 
 
+def test_existing_initializer_wal_ack_failure_is_exit_4(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = copy_config(tmp_path)
+    service = service_with_all_tabs()
+    failing_deps = replace(
+        deps(service),
+        wal_factory=AckFailingWal,
+    )
+
+    code = main(
+        ["--config", str(config), "--schema", str(SCHEMA), "--wal", str(tmp_path / "init.wal")],
+        failing_deps,
+    )
+    captured = capsys.readouterr()
+
+    assert code == 4
+    assert "SHEETS_INIT_WAL_FAILED" in captured.out
+    assert "WAL_ACK_FAILED" in captured.out
+    assert_no_secret(captured.out, captured.err)
+
+
+def test_existing_initializer_lock_release_failure_is_exit_5(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = copy_config(tmp_path)
+    service = service_with_all_tabs()
+
+    def steal_lock_after_initializer(fake: FakeGoogleSheetsService) -> None:
+        if len(fake.batch_update_requests) < 2:
+            return
+        for row in fake.rows["Metadata"]:
+            if row and row[0] == "writer_lock_owner":
+                row[1] = "other"
+            if row and row[0] == "writer_lock_run_id":
+                row[1] = "other-run"
+
+    service.after_batch_apply_hook = steal_lock_after_initializer
+
+    code, out, err = run_cli(
+        ["--config", str(config), "--schema", str(SCHEMA), "--wal", str(tmp_path / "init.wal")],
+        service,
+        capsys,
+    )
+
+    assert code == 5
+    assert "SHEETS_LOCK_OWNER_MISMATCH" in out
+    assert "LOCK_RELEASE_FAILED" in out
+    assert_no_secret(out, err)
+
+
 def test_bootstrap_confirmation_and_execution_order(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -273,6 +336,42 @@ def test_bootstrap_confirmation_and_execution_order(
     assert "SHEETS_INIT_OK" in out
     assert operations[0] == BOOTSTRAP_OPERATION
     assert INIT_OPERATION in operations
+
+
+def test_bootstrap_wal_ack_failure_stops_before_initializer(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = copy_config(tmp_path)
+    service = FakeGoogleSheetsService(
+        spreadsheet_id="spreadsheet-123", sheets={"Features": [["Feature ID", "Title"]]}
+    )
+    wal_path = tmp_path / "bootstrap-ack-fail.wal"
+    failing_deps = replace(deps(service), wal_factory=AckFailingWal)
+
+    code = main(
+        [
+            "--config",
+            str(config),
+            "--schema",
+            str(SCHEMA),
+            "--bootstrap-lock-storage",
+            "--confirm-spreadsheet-id",
+            "spreadsheet-123",
+            "--wal",
+            str(wal_path),
+        ],
+        failing_deps,
+    )
+    captured = capsys.readouterr()
+    entries = AppendOnlyWal(wal_path, "run-1").read_entries()
+    pending_ops = [entry.operation for entry in entries if entry.status == "pending"]
+
+    assert code == 4
+    assert "SHEETS_INIT_WAL_FAILED" in captured.out
+    assert "WAL_ACK_FAILED" in captured.out
+    assert pending_ops == [BOOTSTRAP_OPERATION]
+    assert INIT_OPERATION not in pending_ops
+    assert_no_secret(captured.out, captured.err)
 
 
 def test_create_dry_run_and_create_with_config_write(
@@ -462,6 +561,46 @@ def test_resume_bootstrap_initializer_and_create_pending(
     )
     assert code == 3
     assert "MANUAL_RECONCILIATION" in out
+
+
+def test_resume_retry_required_is_not_success(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = copy_config(tmp_path)
+    service = service_with_all_tabs()
+    wal_path = tmp_path / "retry-required.jsonl"
+    retry_wal = AppendOnlyWal(wal_path, "run-1", clock=lambda: "2026-07-01T00:00:00Z")
+    retry_wal.append_pending(
+        INIT_OPERATION,
+        {
+            "schema_version": 99,
+            "mutation_count": 1,
+            "mutations": [],
+            "postconditions": {
+                "schema_version": "99",
+                "tabs": [{"name": "MissingTab", "headers": ["id"]}],
+            },
+        },
+        operation_id="op-init-retry",
+    )
+
+    code, out, err = run_cli(
+        [
+            "--config",
+            str(config),
+            "--schema",
+            str(SCHEMA),
+            "--resume",
+            "--wal",
+            str(wal_path),
+        ],
+        service,
+        capsys,
+    )
+
+    assert code == 3
+    assert "RETRY_REQUIRED" in out
+    assert_no_secret(out, err)
 
 
 def test_fake_service_cli_does_not_use_socket(

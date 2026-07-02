@@ -16,6 +16,7 @@ from webapp_debug_skill.config_writer import ConfigWriteError, ConfigWriter
 from webapp_debug_skill.errors import (
     EXIT_ARGUMENT_OR_SCHEMA,
     EXIT_EXTERNAL_FAILURE,
+    EXIT_LOCK_CONFLICT,
     EXIT_OK,
     EXIT_POLICY_BLOCKED,
     EXIT_UNEXPECTED,
@@ -34,6 +35,8 @@ from webapp_debug_skill.redaction import secret_findings
 from webapp_debug_skill.sheets_bootstrap import (
     BOOTSTRAP_OPERATION,
     CREATE_OPERATION,
+    BootstrapOutcome,
+    BootstrapResult,
     SheetsBootstrapError,
     SheetsBootstrapper,
 )
@@ -42,6 +45,7 @@ from webapp_debug_skill.sheets_init import (
     INIT_OPERATION,
     InitExecutionError,
     InitOutcome,
+    InitResult,
     InitPlanningError,
     InitPolicy,
     SheetsInitializer,
@@ -392,6 +396,18 @@ def initialize_existing(
             operation_id_factory=deps.operation_id_factory,
         )
         bootstrap_result = bootstrapper.bootstrap()
+        require_bootstrap_success(
+            bootstrap_result,
+            {
+                **base_data,
+                "action": "initialize_existing",
+                "spreadsheet_id": spreadsheet_id,
+                "bootstrap_required": True,
+                "bootstrapped": bootstrap_result.bootstrapped,
+                "wal_pending_written": bootstrap_result.wal_pending_written,
+                "wal_acknowledged": bootstrap_result.wal_acknowledged,
+            },
+        )
     elif inspection.status != "READY":
         raise InitSheetsCliError(
             inspection.reason_code or "SHEETS_BOOTSTRAP_CONFLICT",
@@ -426,6 +442,7 @@ def initialize_existing(
         "config_write_requested": False,
         "config_written": False,
     }
+    require_init_success(init_result, data)
     return ok_result("SHEETS_INIT_OK", "Sheets initialization completed.", data)
 
 
@@ -518,6 +535,25 @@ def create_and_initialize(
         )
     initializer = build_initializer(args, deps, config, backend, wal, run_id)
     init_result = initializer.execute(schema, init_policy(config, run_id))
+    init_data = {
+        **base_data,
+        "action": "create",
+        "outcome": init_result.outcome.value,
+        "spreadsheet_id": created.spreadsheet_id,
+        "created": True,
+        "initialization_noop": init_result.noop,
+        "plan_fingerprint": init_result.plan_fingerprint,
+        "planned_mutation_count": init_result.planned_mutation_count,
+        "applied_mutation_count": init_result.applied_mutation_count,
+        "read_back_verified": init_result.read_back_verified,
+        "wal_pending_written": init_result.wal_pending_written,
+        "wal_acknowledged": init_result.wal_acknowledged,
+        "lock_released": init_result.lock_released,
+        "config_write_requested": args.write_config,
+        "config_written": False,
+        "warnings": create_warnings(),
+    }
+    require_init_success(init_result, init_data)
 
     config_result = None
     if (
@@ -613,6 +649,7 @@ def resume_existing(
             "wal_acknowledged": result.wal_acknowledged,
             "config_written": False,
         }
+        require_bootstrap_success(result, data)
         return ok_result("SHEETS_INIT_RESUME_OK", "Bootstrap WAL reconciled.", data)
     if first.operation == INIT_OPERATION:
         initializer = build_initializer(
@@ -629,6 +666,7 @@ def resume_existing(
             "read_back_verified": result.read_back_verified,
             "config_written": False,
         }
+        require_init_success(result, data)
         return ok_result("SHEETS_INIT_RESUME_OK", "Initializer WAL reconciled.", data)
     raise InitSheetsCliError(
         "INIT_RESUME_UNSUPPORTED_OPERATION",
@@ -728,6 +766,62 @@ def ok_result(code: str, message: str, data: dict[str, Any]) -> CliResult:
     """Build success result."""
 
     return CliResult(ok=True, code=code, message=message, details=[], data=data)
+
+
+def require_bootstrap_success(result: BootstrapResult, data: dict[str, Any]) -> None:
+    """Fail closed when Metadata bootstrap is not safely acknowledged."""
+
+    if result.outcome in {BootstrapOutcome.BOOTSTRAPPED, BootstrapOutcome.ALREADY_APPLIED}:
+        return
+    code = result.reason_code or result.outcome.value
+    raise InitSheetsCliError(
+        code,
+        "bootstrap",
+        result.outcome.value,
+        exit_code=bootstrap_exit_code(result.outcome),
+        data=data,
+    )
+
+
+def require_init_success(result: InitResult, data: dict[str, Any]) -> None:
+    """Fail closed when initializer result is not a safe success state."""
+
+    if result.outcome in {InitOutcome.APPLIED, InitOutcome.NOOP, InitOutcome.ALREADY_APPLIED}:
+        return
+    code = result.reason_code or result.outcome.value
+    raise InitSheetsCliError(
+        code,
+        "initializer",
+        result.outcome.value,
+        exit_code=init_exit_code(result.outcome),
+        data=data,
+    )
+
+
+def bootstrap_exit_code(outcome: BootstrapOutcome) -> int:
+    """Map bootstrap outcome to CLI exit code."""
+
+    if outcome == BootstrapOutcome.WAL_ACK_FAILED:
+        return EXIT_EXTERNAL_FAILURE
+    if outcome == BootstrapOutcome.CONFLICT:
+        return EXIT_LOCK_CONFLICT
+    if outcome == BootstrapOutcome.OUTCOME_UNKNOWN:
+        return EXIT_EXTERNAL_FAILURE
+    return EXIT_POLICY_BLOCKED
+
+
+def init_exit_code(outcome: InitOutcome) -> int:
+    """Map initializer outcome to CLI exit code."""
+
+    if outcome == InitOutcome.WAL_ACK_FAILED:
+        return EXIT_EXTERNAL_FAILURE
+    if outcome == InitOutcome.LOCK_RELEASE_FAILED:
+        return EXIT_LOCK_CONFLICT
+    if outcome in {InitOutcome.OUTCOME_UNKNOWN}:
+        return EXIT_EXTERNAL_FAILURE
+    if outcome in {InitOutcome.RECONCILIATION_CONFLICT}:
+        return EXIT_LOCK_CONFLICT
+    return EXIT_POLICY_BLOCKED
 
 
 def create_warnings() -> list[str]:
