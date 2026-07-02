@@ -94,6 +94,7 @@ def test_ci_workflow_static_shape_and_required_commands() -> None:
         "python scripts/apply_scenario_sync.py --help",
         "python scripts/bootstrap_playwright_project.py --help",
         "python scripts/generate_playwright_tests.py --help",
+        "python scripts/run_playwright_tests.py --help",
         "python scripts/release_check.py --version 0.2.0",
     ):
         assert expected in commands
@@ -152,6 +153,7 @@ def test_documented_script_commands_exist() -> None:
         "scripts/apply_scenario_sync.py",
         "scripts/bootstrap_playwright_project.py",
         "scripts/generate_playwright_tests.py",
+        "scripts/run_playwright_tests.py",
         "scripts/release_check.py",
     }.issubset(script_paths)
     for script_path in script_paths:
@@ -164,7 +166,7 @@ def test_changelog_does_not_claim_future_engines_are_implemented() -> None:
     assert "CakePHP static Inventory discovery" in added
     for not_implemented in (
         "JavaScript parsing",
-        "Playwright runner orchestration",
+        "Playwright artifact collection",
     ):
         assert not_implemented not in added
         assert not_implemented in changelog
@@ -186,6 +188,7 @@ def test_release_checklist_records_ci_and_opt_in_boundaries() -> None:
         "python scripts/apply_scenario_sync.py --help",
         "python scripts/bootstrap_playwright_project.py --help",
         "python scripts/generate_playwright_tests.py --help",
+        "python scripts/run_playwright_tests.py --help",
         "python scripts/release_check.py --version 0.2.0",
         "skip real Google integration tests",
         "Drive API sharing or deletion",

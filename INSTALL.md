@@ -171,6 +171,7 @@ python scripts/plan_scenario_sync.py --help
 python scripts/apply_scenario_sync.py --help
 python scripts/bootstrap_playwright_project.py --help
 python scripts/generate_playwright_tests.py --help
+python scripts/run_playwright_tests.py --help
 python scripts/release_check.py --version 0.2.0
 python scripts/release_check.py --version 0.2.0 --format json
 ```
@@ -277,7 +278,13 @@ python scripts/generate_playwright_tests.py \
   --scenario-json .webapp-debug/state/snapshots/scenarios.json
 ```
 
-Playwright runner orchestrationは後続実装です。
+Playwright runner preflightを実行できます。dry-runではPlaywright、npm、ブラウザ、DB、ネットワーク、Google APIを実行せず、config上のDB guard、auth state path、network allowlist、browser policy、生成manifest/checksumだけを検査します。
+
+```bash
+python scripts/run_playwright_tests.py \
+  --config .webapp-debug/config.yml \
+  --dry-run
+```
 
 ## 13. Release readiness
 

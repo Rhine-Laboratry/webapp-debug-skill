@@ -95,6 +95,9 @@ jobs:
       - name: Check Playwright generator help
         run: python scripts/generate_playwright_tests.py --help
 
+      - name: Check Playwright runner help
+        run: python scripts/run_playwright_tests.py --help
+
       - name: Check release readiness
         run: python scripts/release_check.py --version 0.2.0
 

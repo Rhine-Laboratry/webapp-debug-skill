@@ -46,6 +46,7 @@ REQUIRED_SCRIPTS = (
     "scripts/apply_scenario_sync.py",
     "scripts/bootstrap_playwright_project.py",
     "scripts/generate_playwright_tests.py",
+    "scripts/run_playwright_tests.py",
     "scripts/release_check.py",
 )
 REQUIRED_FILES = (
@@ -288,7 +289,7 @@ def check_changelog(root: Path, version: str) -> list[Issue]:
     added = section_between(text, "### Added", "### Changed")
     for phrase in (
         "JavaScript parsing",
-        "Playwright runner orchestration",
+        "Playwright artifact collection",
     ):
         if phrase in added:
             return [Issue("CHANGELOG.md", "FUTURE_FEATURE_IN_ADDED")]
@@ -308,7 +309,7 @@ def check_release_note(root: Path, relative: str, version: str, tag: str) -> lis
         issues.append(Issue(relative, "TAG_MISSING"))
     for phrase in (
         "Dynamic browser discovery and Test Runs/Defects Sheets apply are not implemented",
-        "Playwright runner orchestration is not implemented",
+        "Playwright artifact collection and status classification are not implemented",
     ):
         if phrase not in text:
             issues.append(Issue(relative, "KNOWN_LIMITATION_MISSING"))

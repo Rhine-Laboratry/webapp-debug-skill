@@ -1045,7 +1045,9 @@ Phase 8B status: 完了。構造化Scenario rows JSONからのstatic Playwright 
 
 Phase 8C status: 完了。locator candidate model、confidence gate、manual override selection preservation、generated page object support、page object ownership conflict detection、generation statusへのlocator_stability連携、unit test、README/INSTALL/SKILL/release docs更新を対象とする。dynamic browser discovery、Playwright runner、network capture、DB、Google APIは実行しない。
 
-Phase 9A以降は未着手。Playwright runner orchestration、browser exploration、JavaScript parser、CakePHP高精度AST adapter、automatic root cause analysisは後続に残す。
+Phase 9A status: 完了。Playwright runner preflight、config上のDB guard確認、auth state path safety、network allowlist、browser policy、生成manifest/checksum検証、no-execution dry-run、opt-in実行gate、unit test、README/INSTALL/SKILL/release docs更新を対象とする。dry-runではPlaywright、npm、ブラウザ、DB、ネットワーク、Google APIを実行しない。artifact収集、status分類、Test Runs/Defects Sheets適用、root cause analysisは実装しない。
+
+Phase 9B以降は未着手。Playwright artifact収集、flaky/retry/status分類、browser exploration、JavaScript parser、CakePHP高精度AST adapter、automatic root cause analysisは後続に残す。
 
 ## 目的
 

@@ -48,6 +48,7 @@ def test_readme_and_install_include_major_cli_names() -> None:
         "scripts/apply_scenario_sync.py",
         "scripts/bootstrap_playwright_project.py",
         "scripts/generate_playwright_tests.py",
+        "scripts/run_playwright_tests.py",
     ):
         assert script in docs
 
@@ -59,7 +60,7 @@ def test_changelog_does_not_mark_future_engines_as_added() -> None:
     assert "CakePHP static Inventory discovery" in added
     for future_feature in (
         "JavaScript parsing",
-        "Playwright runner orchestration",
+        "Playwright artifact collection",
     ):
         assert future_feature not in added
         assert future_feature in changelog
